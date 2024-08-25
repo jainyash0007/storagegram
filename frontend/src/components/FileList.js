@@ -11,11 +11,15 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import SearchIcon from '@mui/icons-material/Search';
 import ShareIcon from '@mui/icons-material/Share';
 import FileCopyIcon from '@mui/icons-material/FileCopy';
+import FolderIcon from '@mui/icons-material/Folder';
 
-function FileList({ files, refreshFiles }) {
+function FileList({ files, folders, refreshFilesAndFolders, onFolderClick }) {
   const [downloadingFileId, setDownloadingFileId] = useState(null);
   const [editingFileId, setEditingFileId] = useState(null);
   const [newFileName, setNewFileName] = useState('');
+  const [editingFolderId, setEditingFolderId] = useState(null);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [deletingFolderId, setDeletingFolderId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOption, setSortOption] = useState('file_name');
   const [sortDirection, setSortDirection] = useState('asc');
@@ -100,6 +104,11 @@ function FileList({ files, refreshFiles }) {
     setNewFileName(currentFileName);
   };
 
+  const handleRenameFolderClick = (folderId, currentFolderName) => {
+    setEditingFolderId(folderId);
+    setNewFolderName(currentFolderName);
+  };
+
   const handleRenameSubmit = (fileId) => {
     const sessionToken = localStorage.getItem('sessionToken');
 
@@ -119,7 +128,7 @@ function FileList({ files, refreshFiles }) {
       })
       .then(data => {
         if (data.success) {
-          refreshFiles();
+          refreshFilesAndFolders();
           setEditingFileId(null);
           setNewFileName('');
         } else {
@@ -129,6 +138,37 @@ function FileList({ files, refreshFiles }) {
       .catch(error => {
         alert('Rename failed');
         console.error('Error renaming file:', error);
+      });
+  };
+
+  const handleRenameFolderSubmit = (folderId) => {
+    const sessionToken = localStorage.getItem('sessionToken');
+    fetch(`http://localhost:3000/api/folders/${folderId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': sessionToken,
+      },
+      body: JSON.stringify({ folderName: newFolderName }),
+    })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Failed to rename folder');
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.success) {
+          refreshFilesAndFolders();
+          setEditingFolderId(null);
+          setNewFolderName('');
+        } else {
+          alert('Rename failed: ' + data.error);
+        }
+      })
+      .catch(error => {
+        alert('Rename failed');
+        console.error('Error renaming folder:', error);
       });
   };
 
@@ -156,7 +196,7 @@ function FileList({ files, refreshFiles }) {
       })
       .then(data => {
         if (data.success) {
-          refreshFiles();
+          refreshFilesAndFolders();
         } else {
           alert('Delete failed: ' + data.error);
         }
@@ -165,6 +205,41 @@ function FileList({ files, refreshFiles }) {
         setDeletingFileId(null);
         alert('Delete failed');
         console.error('Error deleting file:', error);
+      });
+  };
+
+  const handleDeleteFolderClick = (folderId, folderName) => {
+    const sessionToken = localStorage.getItem('sessionToken');
+    const confirmDelete = window.confirm(`Are you sure you want to delete the folder "${folderName}"?`);
+
+    if (!confirmDelete) return;
+
+    setDeletingFolderId(folderId);
+
+    fetch(`http://localhost:3000/api/folders/${folderId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': sessionToken,
+      }
+    })
+      .then(response => {
+        setDeletingFolderId(null);
+        if (!response.ok) {
+          throw new Error('Failed to delete folder');
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.success) {
+          refreshFilesAndFolders();
+        } else {
+          alert('Delete failed: ' + data.error);
+        }
+      })
+      .catch(error => {
+        setDeletingFolderId(null);
+        alert('Delete failed');
+        console.error('Error deleting folder:', error);
       });
   };
 
@@ -185,7 +260,7 @@ function FileList({ files, refreshFiles }) {
 
     Promise.all(promises)
       .then(() => {
-        refreshFiles();
+        refreshFilesAndFolders();
         setSelectedFiles([]);  // Clear selected files
       })
       .catch(error => {
@@ -230,7 +305,81 @@ function FileList({ files, refreshFiles }) {
 
   return (
     <div>
-      <Typography variant="h5" gutterBottom>Your Files</Typography>
+      <Typography variant="h5" gutterBottom>Your Files and Folders</Typography>
+      {/* Render Folders */}
+      <Typography variant="h6">Folders</Typography>
+      <TableContainer component={Paper}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell>Folder Name</TableCell>
+              <TableCell>Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {folders.length > 0 ? (
+              folders.map((folder) => (
+                <TableRow key={folder.folder_id}>
+                  <TableCell>
+                    {editingFolderId === folder.folder_id ? (
+                      <TextField
+                        value={newFolderName}
+                        onChange={(e) => setNewFolderName(e.target.value)}
+                        fullWidth
+                      />
+                    ) : (
+                      <>
+                        <IconButton onClick={() => onFolderClick(folder.folder_id)}>
+                          <FolderIcon />
+                        </IconButton>
+                        {folder.folder_name}
+                      </>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {editingFolderId === folder.folder_id ? (
+                      <>
+                        <Tooltip title="Save">
+                          <IconButton onClick={() => handleRenameFolderSubmit(folder.folder_id)}>
+                            <SaveIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Cancel">
+                          <IconButton onClick={() => setEditingFolderId(null)}>
+                            <CancelIcon />
+                          </IconButton>
+                        </Tooltip>
+                      </>
+                    ) : (
+                      <>
+                        <Tooltip title="Rename">
+                          <IconButton onClick={() => handleRenameFolderClick(folder.folder_id, folder.folder_name)}>
+                            <EditIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete">
+                          <IconButton
+                            onClick={() => handleDeleteFolderClick(folder.folder_id, folder.folder_name)}
+                            disabled={deletingFolderId === folder.folder_id}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </Tooltip>
+                      </>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={2}>
+                  <Typography align="center">No folders found.</Typography>
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </TableContainer>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
         <TextField
@@ -261,7 +410,7 @@ function FileList({ files, refreshFiles }) {
       </div>
 
       {errorMessage && <Typography color="error">{errorMessage}</Typography>}
-
+      <Typography variant="h6" style={{ marginTop: '20px' }}>Files</Typography>
       <TableContainer component={Paper}>
         <Table>
           <TableHead>

@@ -51,7 +51,8 @@ const SESSION_DURATION = 24 * 60 * 60 * 1000;  // 24 hours in milliseconds
 // Frontend-triggered file upload
 app.post('/api/upload', (req, res) => {
   const sessionToken = req.headers.authorization;
-  const file = req.files.file;  // Get the uploaded file
+  const file = req.files.file;
+  const folderId = req.body.folderId || null;
 
   if (!sessionToken) {
     return res.status(401).json({ error: 'Unauthorized: No session token provided' });
@@ -91,41 +92,41 @@ app.post('/api/upload', (req, res) => {
       }
 
       uploadPromise
-  .then((message) => {
-    let fileId, fileSize;
+        .then((message) => {
+          let fileId, fileSize;
 
-    if (fileType === 'photo') {
-      fileId = message.photo[message.photo.length - 1].file_id;
-      fileSize = message.photo[message.photo.length - 1].file_size;
-    } else if (fileType === 'video') {
-      fileId = message.video.file_id;
-      fileSize = message.video.file_size;
-    } else {
-      fileId = message.document.file_id;
-      fileSize = message.document.file_size;
-    }
+          if (fileType === 'photo') {
+            fileId = message.photo[message.photo.length - 1].file_id;
+            fileSize = message.photo[message.photo.length - 1].file_size;
+          } else if (fileType === 'video') {
+            fileId = message.video.file_id;
+            fileSize = message.video.file_size;
+          } else {
+            fileId = message.document.file_id;
+            fileSize = message.document.file_size;
+          }
 
-    const fileName = file.name;
-    const messageId = message.message_id;
+          const fileName = file.name;
+          const messageId = message.message_id;
 
-    // Insert the file metadata into the database
-    pool.query(
-      'INSERT INTO files (chat_id, file_id, file_name, file_size, file_type, message_id) VALUES ($1, $2, $3, $4, $5, $6)',
-      [userId, fileId, fileName, fileSize, fileType, messageId],
-      (error, results) => {
-        if (error) {
-          console.error('Error inserting file into database:', error);
-          return res.status(500).json({ error: 'Failed to save file metadata to the database' });
-        }
+        // Insert the file metadata into the database
+        pool.query(
+          'INSERT INTO files (chat_id, file_id, file_name, file_size, file_type, message_id, folder_id) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+          [userId, fileId, fileName, fileSize, fileType, messageId, folderId],
+          (error, results) => {
+            if (error) {
+              console.error('Error inserting file into database:', error);
+              return res.status(500).json({ error: 'Failed to save file metadata to the database' });
+            }
 
-        res.json({ success: true, message: 'File uploaded and saved successfully via Telegram' });
-      }
-    );
-  })
-  .catch(error => {
-    console.error('Error uploading file via Telegram:', error);
-    res.status(500).json({ error: 'Failed to upload file via Telegram' });
-  });
+            res.json({ success: true, message: 'File uploaded and saved successfully via Telegram' });
+          }
+        );
+      })
+      .catch(error => {
+        console.error('Error uploading file via Telegram:', error);
+        res.status(500).json({ error: 'Failed to upload file via Telegram' });
+      });
     }
   );
 });
@@ -327,6 +328,148 @@ app.get('/api/files/share/:token', (req, res) => {
   });
 });
 
+// Create a new folder
+app.post('/api/folders', (req, res) => {
+  const { folderName, parentFolderId } = req.body;
+  const sessionToken = req.headers.authorization;
+
+  pool.query('SELECT user_id FROM sessions WHERE token = $1', [sessionToken], (err, result) => {
+    if (err || result.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid session' });
+    }
+    const userId = result.rows[0].user_id;
+
+    pool.query(
+      'INSERT INTO folders (folder_name, parent_folder_id, user_id) VALUES ($1, $2, $3) RETURNING *',
+      [folderName, parentFolderId || null, userId],
+      (error, folderResult) => {
+        if (error) {
+          return res.status(500).json({ error: 'Error creating folder' });
+        }
+        res.json({ success: true, folder: folderResult.rows[0] });
+      }
+    );
+  });
+});
+
+// Rename a folder
+app.put('/api/folders/:folderId', (req, res) => {
+  const { folderName } = req.body;
+  const folderId = req.params.folderId;
+
+  pool.query(
+    'UPDATE folders SET folder_name = $1, modified_at = NOW() WHERE folder_id = $2 RETURNING *',
+    [folderName, folderId],
+    (error, result) => {
+      if (error || result.rows.length === 0) {
+        return res.status(500).json({ error: 'Error renaming folder' });
+      }
+      res.json({ success: true, folder: result.rows[0] });
+    }
+  );
+});
+
+// Delete a folder
+app.delete('/api/folders/:folderId', (req, res) => {
+  const folderId = req.params.folderId;
+
+  pool.query('DELETE FROM folders WHERE folder_id = $1 RETURNING *', [folderId], (error, result) => {
+    if (error || result.rows.length === 0) {
+      return res.status(500).json({ error: 'Error deleting folder' });
+    }
+    res.json({ success: true, folder: result.rows[0] });
+  });
+});
+
+// List folders and files within a folder
+app.get('/api/folders/:folderId?', (req, res) => {
+  const { folderId } = req.params;
+  const sessionToken = req.headers.authorization;
+
+  pool.query('SELECT user_id FROM sessions WHERE token = $1', [sessionToken], (err, result) => {
+    if (err || result.rows.length === 0) {
+      console.error('Session error:', err || 'Session not found');
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const userId = result.rows[0].user_id;
+
+    const folderQuery = folderId
+      ? 'SELECT * FROM folders WHERE user_id = $1 AND parent_folder_id = $2'
+      : 'SELECT * FROM folders WHERE user_id = $1 AND parent_folder_id IS NULL';
+
+    const fileQuery = folderId
+      ? 'SELECT * FROM files WHERE chat_id = $1 AND folder_id = $2'
+      : 'SELECT * FROM files WHERE chat_id = $1 AND folder_id IS NULL';
+
+    pool.query(folderQuery, folderId ? [userId, folderId] : [userId], (folderErr, folderResult) => {
+      if (folderErr) {
+        console.error('Folder query error:', folderErr);
+        return res.status(500).json({ error: 'Failed to fetch folders' });
+      }
+
+      const folders = folderResult.rows.length ? folderResult.rows : [];
+
+      pool.query(fileQuery, folderId ? [userId, folderId] : [userId], (fileErr, fileResult) => {
+        if (fileErr) {
+          console.error('File query error:', fileErr);
+          return res.status(500).json({ error: 'Failed to fetch files' });
+        }
+
+        const files = fileResult.rows.length ? fileResult.rows : [];
+
+        res.json({
+          folders: folders,
+          files: files,
+        });
+      });
+    });
+  });
+});
+
+app.get('/api/folders/path/:folderId', (req, res) => {
+  const { folderId } = req.params;
+  const sessionToken = req.headers.authorization;
+
+  if (!sessionToken) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  pool.query('SELECT user_id FROM sessions WHERE token = $1', [sessionToken], (err, result) => {
+    if (err || result.rows.length === 0) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const userId = result.rows[0].user_id;
+
+    const getFolderPath = (folderId, path = []) => {
+      if (!folderId) {
+        return Promise.resolve(path.reverse());
+      }
+
+      return pool.query('SELECT folder_id, folder_name, parent_folder_id FROM folders WHERE folder_id = $1 AND user_id = $2', [folderId, userId])
+        .then(result => {
+          if (result.rows.length === 0) {
+            throw new Error('Folder not found');
+          }
+
+          const folder = result.rows[0];
+          path.push({ folderId: folder.folder_id, folderName: folder.folder_name });
+
+          return getFolderPath(folder.parent_folder_id, path);
+        });
+    };
+
+    getFolderPath(folderId)
+      .then(path => {
+        res.json({ path });
+      })
+      .catch(error => {
+        console.error('Error fetching folder path:', error);
+        res.status(500).json({ error: 'Failed to fetch folder path' });
+      });
+  });
+});
 
 app.post('/api/auth/telegram', (req, res) => {
   const { id, first_name, last_name, username, hash } = req.body.user;

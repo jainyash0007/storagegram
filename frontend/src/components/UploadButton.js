@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 import { Button, Input, LinearProgress, Box } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 
-function UploadButton({ refreshFiles }) {
+function UploadButton({ refreshFilesAndFolders, currentFolderId }) {
   const [selectedFile, setSelectedFile] = useState(null);
-  const [uploadProgress, setUploadProgress] = useState(0); // Track upload progress
-  const [uploading, setUploading] = useState(false); // Track if the upload is in progress
+  const [uploadProgress, setUploadProgress] = useState(0); 
+  const [uploading, setUploading] = useState(false); 
 
   const handleFileChange = (event) => {
     setSelectedFile(event.target.files[0]);
-    setUploadProgress(0); // Reset progress when a new file is selected
+    setUploadProgress(0); 
   };
 
   const handleUploadClick = () => {
@@ -20,6 +20,9 @@ function UploadButton({ refreshFiles }) {
 
     const formData = new FormData();
     formData.append('file', selectedFile);
+    if (currentFolderId) {
+      formData.append('folderId', currentFolderId);
+    }
 
     const sessionToken = localStorage.getItem('sessionToken');
 
@@ -35,11 +38,10 @@ function UploadButton({ refreshFiles }) {
 
     xhr.setRequestHeader('Authorization', sessionToken);
 
-    // Track the upload progress
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {
         const progress = Math.round((event.loaded / event.total) * 100);
-        setUploadProgress(progress); // Update progress percentage
+        setUploadProgress(progress); 
       }
     };
 
@@ -48,10 +50,9 @@ function UploadButton({ refreshFiles }) {
       if (xhr.status === 200) {
         const response = JSON.parse(xhr.responseText);
         if (response.success) {
-          // alert(response.message);
-          refreshFiles();
-          setSelectedFile(null); // Reset selected file after upload
-          setUploadProgress(0); // Reset progress after upload
+          refreshFilesAndFolders();
+          setSelectedFile(null); 
+          setUploadProgress(0); 
         } else {
           alert('File upload failed: ' + response.error);
         }
@@ -65,7 +66,7 @@ function UploadButton({ refreshFiles }) {
       alert('File upload failed');
     };
 
-    xhr.send(formData); // Send the form data containing the file
+    xhr.send(formData); 
   };
 
   return (
@@ -76,7 +77,7 @@ function UploadButton({ refreshFiles }) {
         color="primary"
         startIcon={<CloudUploadIcon />}
         onClick={handleUploadClick}
-        disabled={!selectedFile || uploading} // Disable button when uploading or no file selected
+        disabled={!selectedFile || uploading}
         sx={{ mt: 2 }}
       >
         {uploading ? 'Uploading...' : 'Upload File via Telegram'}
