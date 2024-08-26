@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
-  IconButton, TextField, Typography, Tooltip, Checkbox, Button, TableSortLabel, InputAdornment
+  IconButton, TextField, Typography, Tooltip, Checkbox, Button, TableSortLabel, InputAdornment,
+  Menu, MenuItem, Modal, Box
 } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
 import EditIcon from '@mui/icons-material/Edit';
@@ -30,6 +31,10 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick }) {
   const [sharedFileName, setSharedFileName] = useState('');
   const [expirationTime, setExpirationTime] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [contextMenu, setContextMenu] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [activityLogs, setActivityLogs] = useState([]);
+  const [activityModalOpen, setActivityModalOpen] = useState(false);
 
   const validFiles = Array.isArray(files) ? files : [];
 
@@ -303,6 +308,31 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick }) {
     setCopied(true);
   };
 
+  const handleContextMenu = (event, file) => {
+    event.preventDefault();
+    setContextMenu({ mouseX: event.clientX - 2, mouseY: event.clientY - 4 });
+    setSelectedFile(file);
+  };
+
+  const handleCloseContextMenu = () => {
+    setContextMenu(null);
+  };
+
+  const handleFileActivity = () => {
+    fetch(`http://localhost:3000/api/files/${selectedFile.file_id}/activity`, {
+      headers: {
+        'Authorization': localStorage.getItem('sessionToken'),
+      }
+    })
+      .then(response => response.json())
+      .then(data => {
+        setActivityLogs(data);
+        setActivityModalOpen(true);
+        handleCloseContextMenu();
+      })
+      .catch(error => console.error('Error fetching activity logs:', error));
+  };
+
   return (
     <div>
       <Typography variant="h5" gutterBottom>Your Files and Folders</Typography>
@@ -455,7 +485,9 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick }) {
           <TableBody>
             {sortedFiles.length > 0 ? (
               sortedFiles.map((file) => (
-                <TableRow key={file.file_id} selected={selectedFiles.includes(file.file_id)}>
+                <TableRow key={file.file_id} selected={selectedFiles.includes(file.file_id)} onContextMenu={(event) => handleContextMenu(event, file)}
+                  style={{ cursor: 'context-menu' }}
+                >
                   <TableCell padding="checkbox">
                     <Checkbox
                       checked={selectedFiles.includes(file.file_id)}
@@ -532,6 +564,61 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick }) {
           </TableBody>
         </Table>
       </TableContainer>
+      {/* Context Menu */}
+      <Menu
+        open={contextMenu !== null}
+        onClose={handleCloseContextMenu}
+        anchorReference="anchorPosition"
+        anchorPosition={
+          contextMenu !== null
+            ? { top: contextMenu.mouseY, left: contextMenu.mouseX }
+            : undefined
+        }
+      >
+        <MenuItem onClick={handleFileActivity}>File Activity</MenuItem>
+      </Menu>
+
+      {/* Activity Log Modal */}
+      <Modal
+        open={activityModalOpen}
+        onClose={() => setActivityModalOpen(false)}
+      >
+        <Box
+          sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: 400,
+            bgcolor: 'background.paper',
+            border: '2px solid #000',
+            boxShadow: 24,
+            p: 4,
+            borderRadius: 2,
+          }}
+        >
+          <Typography variant="h6">Activity Logs for {selectedFile?.file_name}</Typography>
+          <TableContainer component={Paper}>
+            <Table>
+              <TableBody>
+                {activityLogs.length > 0 ? (
+                  activityLogs.map(log => (
+                    <TableRow key={log.activity_id}>
+                      <TableCell>{log.activity_type}</TableCell>
+                      <TableCell>{new Date(log.activity_timestamp).toLocaleString()}</TableCell>
+                      <TableCell>{log.details}</TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={3}>No activity logs found.</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Box>
+      </Modal>
       {/* Show shareable link if available */}
       {shareLink && (
         <div style={{ marginTop: '20px' }}>

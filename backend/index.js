@@ -118,6 +118,16 @@ app.post('/api/upload', (req, res) => {
               console.error('Error inserting file into database:', error);
               return res.status(500).json({ error: 'Failed to save file metadata to the database' });
             }
+            // Log activity after successful upload
+            pool.query(
+              'INSERT INTO activity_logs (file_id, user_id, activity_type, details) VALUES ($1, $2, $3, $4)',
+              [fileId, userId, 'upload', `Uploaded file: ${fileName}`],
+              (logError) => {
+                if (logError) {
+                  console.error('Error logging activity:', logError);
+                }
+              }
+            );
 
             res.json({ success: true, message: 'File uploaded and saved successfully via Telegram' });
           }
@@ -181,6 +191,7 @@ app.get('/api/download/:fileId', (req, res) => {
       }
 
       const fileName = results.rows[0].file_name;
+      const userId = results.rows[0].user_id;
 
       telegramBot.getFile(fileId)
         .then(file => {
@@ -195,6 +206,16 @@ app.get('/api/download/:fileId', (req, res) => {
             res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
             res.setHeader('Content-Type', response.headers['content-type'] || 'application/octet-stream');
             response.data.pipe(res);
+
+            pool.query(
+              'INSERT INTO activity_logs (file_id, user_id, activity_type, details) VALUES ($1, $2, $3, $4)',
+              [fileId, userId, 'download', `Downloaded file: ${fileName}`],
+              (logError) => {
+                if (logError) {
+                  console.error('Error logging activity:', logError);
+                }
+              }
+            );
           }).catch(error => {
             console.error('Error fetching the file from Telegram:', error);
             res.status(500).json({ error: 'Failed to download the file from Telegram' });
@@ -404,7 +425,6 @@ app.get('/api/folders/:folderId?', (req, res) => {
 
     pool.query(folderQuery, folderId ? [userId, folderId] : [userId], (folderErr, folderResult) => {
       if (folderErr) {
-        console.error('Folder query error:', folderErr);
         return res.status(500).json({ error: 'Failed to fetch folders' });
       }
 
@@ -560,6 +580,30 @@ app.put('/api/files/rename/:fileId', (req, res) => {
   });
 });
 
+app.get('/api/files/:fileId/activity', (req, res) => {
+  const { fileId } = req.params;
+  const sessionToken = req.headers.authorization;
+
+  // Validate session token and get user ID
+  pool.query('SELECT user_id FROM sessions WHERE token = $1', [sessionToken], (sessionError, sessionResult) => {
+    if (sessionError || sessionResult.rows.length === 0) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const userId = sessionResult.rows[0].user_id;
+
+    // Fetch the activity logs for the specified file
+    pool.query('SELECT * FROM activity_logs WHERE file_id = $1 ORDER BY activity_timestamp DESC', [fileId], (error, result) => {
+      if (error) {
+        console.error('Error fetching activity logs:', error);
+        return res.status(500).json({ error: 'Failed to retrieve activity logs' });
+      }
+
+      res.json(result.rows);
+    });
+  });
+});
+
 // Logout API
 app.post('/api/logout', (req, res) => {
   const sessionToken = req.headers.authorization;
@@ -568,17 +612,26 @@ app.post('/api/logout', (req, res) => {
     return res.status(400).json({ error: 'No session token provided' });
   }
 
-  pool.query('DELETE FROM sessions WHERE token = $1', [sessionToken], (error, results) => {
-    if (error) {
-      console.error('Error during session logout:', error);
-      return res.status(500).json({ error: 'Failed to log out' });
+  pool.query('SELECT user_id FROM sessions WHERE token = $1', [sessionToken], (sessionError, sessionResult) => {
+    if (sessionError || sessionResult.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid session token' });
     }
 
-    if (results.rowCount === 0) {
-      return res.status(404).json({ error: 'Session not found' });
-    }
+    const userId = sessionResult.rows[0].user_id;
 
-    res.json({ success: true, message: 'Logged out successfully' });
+    // Delete all sessions for the user
+    pool.query('DELETE FROM sessions WHERE user_id = $1', [userId], (deleteError, deleteResult) => {
+      if (deleteError) {
+        console.error('Error during session logout:', deleteError);
+        return res.status(500).json({ error: 'Failed to log out' });
+      }
+
+      if (deleteResult.rowCount === 0) {
+        return res.status(404).json({ error: 'No active sessions found for this user' });
+      }
+
+      res.json({ success: true, message: 'Logged out from all devices successfully' });
+    });
   });
 });
 
