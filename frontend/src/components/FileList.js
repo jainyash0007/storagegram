@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
-  IconButton, TextField, Typography, Tooltip, Checkbox, Button, TableSortLabel, InputAdornment,
+  IconButton, TextField, Typography, Tooltip, Checkbox, Button, TableSortLabel,
   Menu, MenuItem, Modal, Box
 } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -9,30 +9,35 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
-import SearchIcon from '@mui/icons-material/Search';
 import ShareIcon from '@mui/icons-material/Share';
 import FileCopyIcon from '@mui/icons-material/FileCopy';
 import FolderIcon from '@mui/icons-material/Folder';
+import { useLocation } from 'react-router-dom';
 
-function FileList({ files, folders, refreshFilesAndFolders, onFolderClick }) {
+function FileList({ files, folders, refreshFilesAndFolders, onFolderClick, searchQuery }) {
   const [downloadingFileId, setDownloadingFileId] = useState(null);
   const [editingFileId, setEditingFileId] = useState(null);
   const [newFileName, setNewFileName] = useState('');
+  const [deletingFileId, setDeletingFileId] = useState(null);
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [selectedFile, setSelectedFile] = useState(null);
+
   const [editingFolderId, setEditingFolderId] = useState(null);
   const [newFolderName, setNewFolderName] = useState('');
   const [deletingFolderId, setDeletingFolderId] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
+
+  
   const [sortOption, setSortOption] = useState('file_name');
   const [sortDirection, setSortDirection] = useState('asc');
   const [errorMessage, setErrorMessage] = useState(null);
-  const [deletingFileId, setDeletingFileId] = useState(null);
-  const [selectedFiles, setSelectedFiles] = useState([]);
+  
   const [shareLink, setShareLink] = useState(null);
   const [sharedFileName, setSharedFileName] = useState('');
   const [expirationTime, setExpirationTime] = useState(null);
   const [copied, setCopied] = useState(false);
+  const location = useLocation();
+
   const [contextMenu, setContextMenu] = useState(null);
-  const [selectedFile, setSelectedFile] = useState(null);
   const [activityLogs, setActivityLogs] = useState([]);
   const [activityModalOpen, setActivityModalOpen] = useState(false);
 
@@ -77,7 +82,7 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick }) {
     setDownloadingFileId(fileId);
     setErrorMessage(null);
 
-    fetch(`http://localhost:3000/api/download/${fileId}`, {
+    fetch(`http://localhost:3000/api/files/download/${fileId}`, {
       headers: {
         'Authorization': sessionToken,
       }
@@ -333,9 +338,26 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick }) {
       .catch(error => console.error('Error fetching activity logs:', error));
   };
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShareLink(null);
+      setSharedFileName('');
+      setExpirationTime(null);
+    }, 10000); // 10 seconds
+
+    return () => clearTimeout(timer);
+  }, [shareLink]);
+
+  useEffect(() => {
+    return () => {
+      setShareLink(null);
+      setSharedFileName('');
+      setExpirationTime(null);
+    };
+  }, [location]);
+
   return (
     <div>
-      <Typography variant="h5" gutterBottom>Your Files and Folders</Typography>
       {/* Render Folders */}
       <Typography variant="h6">Folders</Typography>
       <TableContainer component={Paper}>
@@ -412,21 +434,6 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick }) {
       </TableContainer>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-        <TextField
-          label="Search Files"
-          variant="outlined"
-          fullWidth
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon />
-              </InputAdornment>
-            ),
-          }}
-          margin="normal"
-        />
         {selectedFiles.length > 1 && (
           <Button
             variant="contained"
@@ -606,7 +613,7 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick }) {
                     <TableRow key={log.activity_id}>
                       <TableCell>{log.activity_type}</TableCell>
                       <TableCell>{new Date(log.activity_timestamp).toLocaleString()}</TableCell>
-                      <TableCell>{log.details}</TableCell>
+                      <TableCell><span dangerouslySetInnerHTML={{ __html: log.details }}/></TableCell>
                     </TableRow>
                   ))
                 ) : (

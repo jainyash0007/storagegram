@@ -9,7 +9,7 @@ function LogoutButton() {
     const token = localStorage.getItem('sessionToken');
 
     if (token) {
-      fetch('http://localhost:3000/api/logout', {
+      fetch('http://localhost:3000/api/auth/logout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

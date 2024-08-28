@@ -1,23 +1,20 @@
-import React, { useState } from 'react';
-import { Button, Input, LinearProgress, Box } from '@mui/material';
-import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import React, { useState, useRef } from 'react';
+import { LinearProgress, Box, MenuItem } from '@mui/material';
+import debounce from 'lodash/debounce';
 
-function UploadButton({ refreshFilesAndFolders, currentFolderId }) {
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [uploadProgress, setUploadProgress] = useState(0); 
-  const [uploading, setUploading] = useState(false); 
+function UploadButton({ refreshFilesAndFolders, currentFolderId, handleMenuClose }) {
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
 
-  const handleFileChange = (event) => {
-    setSelectedFile(event.target.files[0]);
-    setUploadProgress(0); 
-  };
-
-  const handleUploadClick = () => {
-    if (!selectedFile) {
-      alert("Please select a file!");
-      return;
+  const handleFileChange = debounce((event) => {
+    const selectedFile = event.target.files[0];
+    if (selectedFile) {
+      uploadFile(selectedFile);
     }
+  }, 300); // Debounce with a 300ms delay
 
+  const uploadFile = (selectedFile) => {
     const formData = new FormData();
     formData.append('file', selectedFile);
     if (currentFolderId) {
@@ -34,14 +31,14 @@ function UploadButton({ refreshFilesAndFolders, currentFolderId }) {
     setUploading(true);
 
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', 'http://localhost:3000/api/upload', true);
+    xhr.open('POST', 'http://localhost:3000/api/files/upload', true);
 
     xhr.setRequestHeader('Authorization', sessionToken);
 
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {
         const progress = Math.round((event.loaded / event.total) * 100);
-        setUploadProgress(progress); 
+        setUploadProgress(progress);
       }
     };
 
@@ -51,8 +48,8 @@ function UploadButton({ refreshFilesAndFolders, currentFolderId }) {
         const response = JSON.parse(xhr.responseText);
         if (response.success) {
           refreshFilesAndFolders();
-          setSelectedFile(null); 
-          setUploadProgress(0); 
+          setUploadProgress(0);
+          handleMenuClose(); // Close dropdown
         } else {
           alert('File upload failed: ' + response.error);
         }
@@ -66,22 +63,21 @@ function UploadButton({ refreshFilesAndFolders, currentFolderId }) {
       alert('File upload failed');
     };
 
-    xhr.send(formData); 
+    xhr.send(formData);
   };
 
   return (
     <Box sx={{ mt: 2 }}>
-      <Input type="file" onChange={handleFileChange} />
-      <Button
-        variant="contained"
-        color="primary"
-        startIcon={<CloudUploadIcon />}
-        onClick={handleUploadClick}
-        disabled={!selectedFile || uploading}
-        sx={{ mt: 2 }}
-      >
-        {uploading ? 'Uploading...' : 'Upload File via Telegram'}
-      </Button>
+      {/* Hidden file input */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        style={{ display: 'none' }}
+        onChange={handleFileChange}
+      />
+      <MenuItem onClick={() => fileInputRef.current.click()}>
+        File Upload
+      </MenuItem>
 
       {uploading && (
         <Box sx={{ width: '100%', mt: 2 }}>
