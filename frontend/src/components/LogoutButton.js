@@ -20,6 +20,7 @@ function LogoutButton() {
       .then(data => {
         if (data.success) {
           localStorage.removeItem('sessionToken');
+          localStorage.removeItem('platform');
           navigate('/login');
         } else {
           alert('Failed to log out');

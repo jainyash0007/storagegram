@@ -26,11 +26,10 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick, searc
   const [newFolderName, setNewFolderName] = useState('');
   const [deletingFolderId, setDeletingFolderId] = useState(null);
 
-  
-  const [sortOption, setSortOption] = useState('file_name');
+  const [sortOption, setSortOption] = useState('name');
   const [sortDirection, setSortDirection] = useState('asc');
   const [errorMessage, setErrorMessage] = useState(null);
-  
+
   const [shareLink, setShareLink] = useState(null);
   const [sharedFileName, setSharedFileName] = useState('');
   const [expirationTime, setExpirationTime] = useState(null);
@@ -41,7 +40,7 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick, searc
   const [activityLogs, setActivityLogs] = useState([]);
   const [activityModalOpen, setActivityModalOpen] = useState(false);
 
-  const validFiles = Array.isArray(files) ? files : [];
+  const combinedItems = [...folders.map(folder => ({ ...folder, type: 'folder' })), ...files.map(file => ({ ...file, type: 'file' }))];
 
   const formatFileSize = (sizeInBytes) => {
     if (sizeInBytes === 0) return '0 Bytes';
@@ -57,17 +56,18 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick, searc
     setSortOption(column);
   };
 
-  const filteredFiles = validFiles.filter(file =>
-    file.file_name.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredItems = combinedItems.filter(item =>
+    item.type === 'folder' ? item.folder_name.toLowerCase().includes(searchQuery.toLowerCase()) :
+    item.file_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const sortedFiles = filteredFiles.sort((a, b) => {
-    let valueA = a[sortOption];
-    let valueB = b[sortOption];
+  const sortedItems = filteredItems.sort((a, b) => {
+    let valueA = a.type === 'folder' ? a.folder_name : a.file_name;
+    let valueB = b.type === 'folder' ? b.folder_name : b.file_name;
 
     if (sortOption === 'file_size') {
-      valueA = Number(a.file_size);
-      valueB = Number(b.file_size);
+      valueA = a.file_size || 0;
+      valueB = b.file_size || 0;
     }
 
     if (sortDirection === 'asc') {
@@ -75,7 +75,7 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick, searc
     } else {
       return valueA < valueB ? 1 : -1;
     }
-  });
+  }).sort((a, b) => a.type === 'folder' && b.type !== 'folder' ? -1 : b.type === 'folder' && a.type !== 'folder' ? 1 : 0);
 
   const downloadFile = (fileId, fileName) => {
     const sessionToken = localStorage.getItem('sessionToken');
@@ -109,30 +109,32 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick, searc
       });
   };
 
-  const handleRenameClick = (fileId, currentFileName) => {
-    setEditingFileId(fileId);
-    setNewFileName(currentFileName);
+  const handleRenameClick = (item) => {
+    if (item.type === 'folder') {
+      setEditingFolderId(item.folder_id);
+      setNewFolderName(item.folder_name);
+    } else {
+      setEditingFileId(item.file_id);
+      setNewFileName(item.file_name);
+    }
   };
 
-  const handleRenameFolderClick = (folderId, currentFolderName) => {
-    setEditingFolderId(folderId);
-    setNewFolderName(currentFolderName);
-  };
-
-  const handleRenameSubmit = (fileId) => {
+  const handleRenameSubmit = (item) => {
     const sessionToken = localStorage.getItem('sessionToken');
+    const url = item.type === 'folder' ? `http://localhost:3000/api/folders/${item.folder_id}` : `http://localhost:3000/api/files/rename/${item.file_id}`;
+    const body = item.type === 'folder' ? { folderName: newFolderName } : { newFileName };
 
-    fetch(`http://localhost:3000/api/files/rename/${fileId}`, {
+    fetch(url, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': sessionToken,
       },
-      body: JSON.stringify({ newFileName }),
+      body: JSON.stringify(body),
     })
       .then(response => {
         if (!response.ok) {
-          throw new Error('Failed to rename file');
+          throw new Error('Failed to rename');
         }
         return response.json();
       })
@@ -140,37 +142,8 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick, searc
         if (data.success) {
           refreshFilesAndFolders();
           setEditingFileId(null);
-          setNewFileName('');
-        } else {
-          alert('Rename failed: ' + data.error);
-        }
-      })
-      .catch(error => {
-        alert('Rename failed');
-        console.error('Error renaming file:', error);
-      });
-  };
-
-  const handleRenameFolderSubmit = (folderId) => {
-    const sessionToken = localStorage.getItem('sessionToken');
-    fetch(`http://localhost:3000/api/folders/${folderId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': sessionToken,
-      },
-      body: JSON.stringify({ folderName: newFolderName }),
-    })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Failed to rename folder');
-        }
-        return response.json();
-      })
-      .then(data => {
-        if (data.success) {
-          refreshFilesAndFolders();
           setEditingFolderId(null);
+          setNewFileName('');
           setNewFolderName('');
         } else {
           alert('Rename failed: ' + data.error);
@@ -178,29 +151,27 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick, searc
       })
       .catch(error => {
         alert('Rename failed');
-        console.error('Error renaming folder:', error);
+        console.error('Error renaming:', error);
       });
   };
 
-  const handleDeleteClick = (fileId, fileName) => {
+  const handleDeleteClick = (item) => {
     const sessionToken = localStorage.getItem('sessionToken');
-    const confirmDelete = window.confirm(`Are you sure you want to delete the file "${fileName}"?`);
+    const confirmDelete = window.confirm(`Are you sure you want to delete the ${item.type} "${item.type === 'folder' ? item.folder_name : item.file_name}"?`);
 
     if (!confirmDelete) return;
 
-    setDeletingFileId(fileId);
-    setErrorMessage(null);
+    const url = item.type === 'folder' ? `http://localhost:3000/api/folders/${item.folder_id}` : `http://localhost:3000/api/files/delete/${item.file_id}`;
 
-    fetch(`http://localhost:3000/api/files/delete/${fileId}`, {
+    fetch(url, {
       method: 'DELETE',
       headers: {
         'Authorization': sessionToken,
       }
     })
       .then(response => {
-        setDeletingFileId(null);
         if (!response.ok) {
-          throw new Error('Failed to delete file');
+          throw new Error('Failed to delete');
         }
         return response.json();
       })
@@ -212,50 +183,14 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick, searc
         }
       })
       .catch(error => {
-        setDeletingFileId(null);
         alert('Delete failed');
-        console.error('Error deleting file:', error);
-      });
-  };
-
-  const handleDeleteFolderClick = (folderId, folderName) => {
-    const sessionToken = localStorage.getItem('sessionToken');
-    const confirmDelete = window.confirm(`Are you sure you want to delete the folder "${folderName}"?`);
-
-    if (!confirmDelete) return;
-
-    setDeletingFolderId(folderId);
-
-    fetch(`http://localhost:3000/api/folders/${folderId}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': sessionToken,
-      }
-    })
-      .then(response => {
-        setDeletingFolderId(null);
-        if (!response.ok) {
-          throw new Error('Failed to delete folder');
-        }
-        return response.json();
-      })
-      .then(data => {
-        if (data.success) {
-          refreshFilesAndFolders();
-        } else {
-          alert('Delete failed: ' + data.error);
-        }
-      })
-      .catch(error => {
-        setDeletingFolderId(null);
-        alert('Delete failed');
-        console.error('Error deleting folder:', error);
+        console.error('Error deleting:', error);
       });
   };
 
   const handleBulkDelete = () => {
     const sessionToken = localStorage.getItem('sessionToken');
-    const confirmDelete = window.confirm('Are you sure you want to delete the selected files?');
+    const confirmDelete = window.confirm('Are you sure you want to delete the selected items?');
 
     if (!confirmDelete) return;
 
@@ -278,6 +213,38 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick, searc
         console.error('Error deleting files:', error);
       });
   };
+
+  const handleBulkDownload = () => {
+    const sessionToken = localStorage.getItem('sessionToken');
+    const fileIds = selectedFiles;
+
+    fetch('http://localhost:3000/api/files/download/zip', {
+        method: 'POST',
+        headers: {
+            'Authorization': sessionToken,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ fileIds }),
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Failed to download files');
+        }
+        return response.blob();
+    })
+    .then(blob => {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', 'files.zip');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    })
+    .catch(error => {
+        console.error('Error downloading files:', error);
+    });
+};
 
   const handleSelectFile = (fileId) => {
     setSelectedFiles(prev =>
@@ -358,114 +325,58 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick, searc
 
   return (
     <div>
-      {/* Render Folders */}
-      <Typography variant="h6">Folders</Typography>
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Folder Name</TableCell>
-              <TableCell>Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {folders.length > 0 ? (
-              folders.map((folder) => (
-                <TableRow key={folder.folder_id}>
-                  <TableCell>
-                    {editingFolderId === folder.folder_id ? (
-                      <TextField
-                        value={newFolderName}
-                        onChange={(e) => setNewFolderName(e.target.value)}
-                        fullWidth
-                      />
-                    ) : (
-                      <>
-                        <IconButton onClick={() => onFolderClick(folder.folder_id)}>
-                          <FolderIcon />
-                        </IconButton>
-                        {folder.folder_name}
-                      </>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {editingFolderId === folder.folder_id ? (
-                      <>
-                        <Tooltip title="Save">
-                          <IconButton onClick={() => handleRenameFolderSubmit(folder.folder_id)}>
-                            <SaveIcon />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Cancel">
-                          <IconButton onClick={() => setEditingFolderId(null)}>
-                            <CancelIcon />
-                          </IconButton>
-                        </Tooltip>
-                      </>
-                    ) : (
-                      <>
-                        <Tooltip title="Rename">
-                          <IconButton onClick={() => handleRenameFolderClick(folder.folder_id, folder.folder_name)}>
-                            <EditIcon />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete">
-                          <IconButton
-                            onClick={() => handleDeleteFolderClick(folder.folder_id, folder.folder_name)}
-                            disabled={deletingFolderId === folder.folder_id}
-                          >
-                            <DeleteIcon />
-                          </IconButton>
-                        </Tooltip>
-                      </>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={2}>
-                  <Typography align="center">No folders found.</Typography>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+      {/* Container for Buttons */}
+      <div style={{ position: 'relative', height: '60px' }}>
         {selectedFiles.length > 1 && (
-          <Button
-            variant="contained"
-            color="secondary"
-            onClick={handleBulkDelete}
-            style={{ marginLeft: '16px' }}  // Aligns the button next to the search input
-          >
-            Delete Selected Files
-          </Button>
+          <div style={{ 
+            position: 'absolute', 
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            zIndex: 1000, 
+            backgroundColor: '#fff', 
+            padding: '10px 0', 
+            display: 'flex', 
+            justifyContent: 'flex-start', 
+            gap: '10px', 
+            borderBottom: '1px solid #ccc' 
+          }}>
+            <Button
+              variant="contained"
+              color="secondary"
+              onClick={handleBulkDelete}
+            >
+              Delete Selected Files
+            </Button>
+            <Button
+                variant="contained"
+                color="primary"
+                onClick={handleBulkDownload}
+            >
+                Download Selected Files
+            </Button>
+          </div>
         )}
       </div>
-
-      {errorMessage && <Typography color="error">{errorMessage}</Typography>}
-      <Typography variant="h6" style={{ marginTop: '20px' }}>Files</Typography>
       <TableContainer component={Paper}>
+      {errorMessage && <Typography color="error">{errorMessage}</Typography>}
         <Table>
           <TableHead>
             <TableRow>
               <TableCell padding="checkbox">
                 <Checkbox
-                  indeterminate={selectedFiles.length > 0 && selectedFiles.length < validFiles.length}
-                  checked={selectedFiles.length === validFiles.length}
-                  onChange={(e) => setSelectedFiles(e.target.checked ? validFiles.map(file => file.file_id) : [])}
+                  indeterminate={selectedFiles.length > 0 && selectedFiles.length < combinedItems.filter(item => item.type === 'file').length}
+                  checked={selectedFiles.length === combinedItems.filter(item => item.type === 'file').length}
+                  onChange={(e) => setSelectedFiles(e.target.checked ? combinedItems.filter(item => item.type === 'file').map(item => item.file_id) : [])}
                 />
               </TableCell>
               <TableCell>
                 <TableSortLabel
-                  active={sortOption === 'file_name'}
+                  active={sortOption === 'name'}
                   direction={sortDirection}
-                  onClick={() => handleSortRequest('file_name')}
+                  onClick={() => handleSortRequest('name')}
                 >
-                  File Name
+                  Name
                 </TableSortLabel>
               </TableCell>
               <TableCell>
@@ -490,72 +401,127 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick, searc
             </TableRow>
           </TableHead>
           <TableBody>
-            {sortedFiles.length > 0 ? (
-              sortedFiles.map((file) => (
-                <TableRow key={file.file_id} selected={selectedFiles.includes(file.file_id)} onContextMenu={(event) => handleContextMenu(event, file)}
+            {sortedItems.length > 0 ? (
+              sortedItems.map((item) => (
+                <TableRow key={item.type === 'folder' ? item.folder_id : item.file_id} selected={selectedFiles.includes(item.file_id)} onContextMenu={(event) => handleContextMenu(event, item)}
                   style={{ cursor: 'context-menu' }}
                 >
                   <TableCell padding="checkbox">
                     <Checkbox
-                      checked={selectedFiles.includes(file.file_id)}
-                      onChange={() => handleSelectFile(file.file_id)}
+                      checked={item.type === 'file' && selectedFiles.includes(item.file_id)}
+                      onChange={() => handleSelectFile(item.file_id)}
+                      disabled={item.type === 'folder'}
                     />
                   </TableCell>
                   <TableCell>
-                    {editingFileId === file.file_id ? (
-                      <TextField
-                        value={newFileName}
-                        onChange={(e) => setNewFileName(e.target.value)}
-                        fullWidth
-                      />
+                    {item.type === 'folder' ? (
+                      <>
+                        <IconButton onClick={() => onFolderClick(item.folder_id)}>
+                          <FolderIcon />
+                        </IconButton>
+                        {editingFolderId === item.folder_id ? (
+                          <TextField
+                            value={newFolderName}
+                            onChange={(e) => setNewFolderName(e.target.value)}
+                            fullWidth
+                          />
+                        ) : (
+                          item.folder_name
+                        )}
+                      </>
                     ) : (
-                      file.file_name
+                      editingFileId === item.file_id ? (
+                        <TextField
+                          value={newFileName}
+                          onChange={(e) => setNewFileName(e.target.value)}
+                          fullWidth
+                        />
+                      ) : (
+                        item.file_name
+                      )
                     )}
                   </TableCell>
-                  <TableCell>{new Date(file.last_modified_date).toLocaleString()}</TableCell>
-                  <TableCell>{formatFileSize(file.file_size)}</TableCell>
+                  <TableCell>{new Date(item.last_modified_date).toLocaleString()}</TableCell>
+                  <TableCell>{item.type === 'folder' ? '-' : formatFileSize(item.file_size)}</TableCell>
                   <TableCell>
-                    {editingFileId === file.file_id ? (
+                    {item.type === 'folder' ? (
                       <>
-                        <Tooltip title="Save">
-                          <IconButton onClick={() => handleRenameSubmit(file.file_id)}>
-                            <SaveIcon />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Cancel">
-                          <IconButton onClick={() => setEditingFileId(null)}>
-                            <CancelIcon />
-                          </IconButton>
-                        </Tooltip>
+                        {editingFolderId === item.folder_id ? (
+                          <>
+                            <Tooltip title="Save">
+                              <IconButton onClick={() => handleRenameSubmit(item)}>
+                                <SaveIcon />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Cancel">
+                              <IconButton onClick={() => setEditingFolderId(null)}>
+                                <CancelIcon />
+                              </IconButton>
+                            </Tooltip>
+                          </>
+                        ) : (
+                          <>
+                            <Tooltip title="Rename">
+                              <IconButton onClick={() => handleRenameClick(item)}>
+                                <EditIcon />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Delete">
+                              <IconButton
+                                onClick={() => handleDeleteClick(item)}
+                                disabled={deletingFolderId === item.folder_id}
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            </Tooltip>
+                          </>
+                        )}
                       </>
                     ) : (
                       <>
-                        <Tooltip title="Download">
-                          <IconButton
-                            onClick={() => downloadFile(file.file_id, file.file_name)}
-                            disabled={downloadingFileId === file.file_id}
-                          >
-                            <DownloadIcon />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Rename">
-                          <IconButton onClick={() => handleRenameClick(file.file_id, file.file_name)}>
-                            <EditIcon />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete">
-                          <IconButton
-                            onClick={() => handleDeleteClick(file.file_id, file.file_name)}
-                            disabled={deletingFileId === file.file_id || selectedFiles.length > 1}
-                          >
-                            <DeleteIcon />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Share">
-                          <IconButton onClick={() => generateShareLink(file.file_id)}>
-                            <ShareIcon />
-                          </IconButton>
-                        </Tooltip>
+                        {editingFileId === item.file_id ? (
+                          <>
+                            <Tooltip title="Save">
+                              <IconButton onClick={() => handleRenameSubmit(item)}>
+                                <SaveIcon />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Cancel">
+                              <IconButton onClick={() => setEditingFileId(null)}>
+                                <CancelIcon />
+                              </IconButton>
+                            </Tooltip>
+                          </>
+                        ) : (
+                          <>
+                            <Tooltip title="Download">
+                              <IconButton
+                                onClick={() => downloadFile(item.file_id, item.file_name)}
+                                disabled={downloadingFileId === item.file_id || selectedFiles.length > 1}
+                              >
+                                <DownloadIcon />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Rename">
+                              <IconButton onClick={() => handleRenameClick(item)}>
+                                <EditIcon />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Delete">
+                              <IconButton
+                                onClick={() => handleDeleteClick(item)}
+                                disabled={deletingFileId === item.file_id || selectedFiles.length > 1}
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Share">
+                              <IconButton onClick={() => generateShareLink(item.file_id)}>
+                                <ShareIcon />
+                              </IconButton>
+                            </Tooltip>
+                          </>
+                        )}
                       </>
                     )}
                   </TableCell>
@@ -564,7 +530,7 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick, searc
             ) : (
               <TableRow>
                 <TableCell colSpan={5}>
-                  <Typography align="center">No files found.</Typography>
+                  <Typography align="center">No items found.</Typography>
                 </TableCell>
               </TableRow>
             )}
@@ -597,6 +563,8 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick, searc
             left: '50%',
             transform: 'translate(-50%, -50%)',
             width: 400,
+            maxHeight: '80vh',
+            overflowY: 'auto',
             bgcolor: 'background.paper',
             border: '2px solid #000',
             boxShadow: 24,

@@ -1,13 +1,20 @@
-// services/fileService.js
 const { pool } = require('../db');
 const telegramBot = require('../telegramBot');
+const discordBot = require('../discordBot');
 const axios = require('axios');
 const uuid = require('uuid');
+const JSZip = require('jszip');
+const { PassThrough } = require('stream');
 
 const uploadFile = async (req) => {
   const sessionToken = req.headers.authorization;
   const file = req.files.file;
   const folderId = req.body.folderId || null;
+  const platform = req.body.platform;
+
+  if (!platform) {
+    throw new Error('Invalid platform specified');
+  }
 
   if (!sessionToken) {
     throw new Error('Unauthorized: No session token provided');
@@ -23,20 +30,38 @@ const uploadFile = async (req) => {
     throw new Error('Session expired');
   }
 
-  const fileType = file.mimetype.startsWith('image') ? 'photo' :
-    file.mimetype.startsWith('video') ? 'video' : 'document';
+   if (platform === 'telegram') {
+    const fileType = file.mimetype.startsWith('image') ? 'photo' :
+      file.mimetype.startsWith('video') ? 'video' : 'document';
 
-  const uploadPromise = uploadToTelegram(fileType, userId, file);
-  const message = await uploadPromise;
+    const uploadPromise = uploadToTelegram(fileType, userId, file);
+    const message = await uploadPromise;
 
-  const { fileId, fileSize } = extractFileData(fileType, message);
-  const fileName = file.name;
-  const messageId = message.message_id;
+    const { fileId, fileSize } = extractFileData(fileType, message);
+    const fileName = file.name;
+    const messageId = message.message_id;
 
-  await saveFileMetadata(fileId, userId, fileName, fileSize, fileType, messageId, folderId);
-  await logActivity(fileId, userId, 'Upload', `Uploaded file: ${fileName}`);
+    await saveFileMetadata(fileId, userId, fileName, fileSize, fileType, messageId, folderId);
+    await logActivity(fileId, userId, 'Upload', `Uploaded file: ${fileName}`);
 
-  return { success: true, message: 'File uploaded and saved successfully via Telegram' };
+    return { success: true, message: 'File uploaded and saved successfully via Telegram' };
+
+  } else if (platform === 'discord') {
+    const message = await uploadToDiscord('document', userId, file);
+    const fileId = message.attachments.first().id;
+    const fileSize = file.size;
+    const fileName = file.name;
+    const messageId = message.id;
+    const fileType = file.mimetype.startsWith('image') ? 'photo' :
+      file.mimetype.startsWith('video') ? 'video' : 'document';
+
+    await saveFileMetadata(fileId, userId, fileName, fileSize, fileType, messageId, folderId);
+    await logActivity(fileId, userId, 'Upload', `Uploaded file: ${fileName}`);
+
+    return { success: true, message: 'File uploaded and saved successfully via Discord' };
+  } else {
+    throw new Error('Invalid platform specified');
+  }
 };
 
 const uploadToTelegram = async (fileType, userId, file) => {
@@ -51,6 +76,10 @@ const uploadToTelegram = async (fileType, userId, file) => {
   }
 
   return uploadPromise;
+};
+
+const uploadToDiscord = async (fileType, userId, file) => {
+  return discordBot.sendDocument(userId, file); // Simplified, as sendDocument handles the file object correctly
 };
 
 const extractFileData = (fileType, message) => {
@@ -71,6 +100,22 @@ const extractFileData = (fileType, message) => {
   return { fileId, fileSize };
 };
 
+const getFileMetadata = async (fileId, userId) => {
+  const result = await pool.query(
+    `SELECT f.message_id, u.platform
+     FROM files f
+     JOIN users u ON f.chat_id = u.id
+     WHERE f.file_id = $1 AND f.chat_id = $2`,
+    [fileId, userId]
+  );
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  return result.rows[0];
+};
+
 const saveFileMetadata = async (fileId, userId, fileName, fileSize, fileType, messageId, folderId) => {
   const query = `
     INSERT INTO files (file_id, chat_id, file_name, file_size, file_type, message_id, folder_id, upload_date)
@@ -81,7 +126,6 @@ const saveFileMetadata = async (fileId, userId, fileName, fileSize, fileType, me
 
   try {
     await pool.query(query, values);
-    console.log('File metadata saved successfully');
   } catch (error) {
     console.error('Error saving file metadata:', error);
     throw new Error('Failed to save file metadata to the database');
@@ -110,18 +154,97 @@ const downloadFile = async (req) => {
 
   const { userId } = await validateSession(sessionToken);
 
-  const fileName = await getFileName(fileId);
-  const downloadUrl = await getTelegramFileUrl(fileId);
+  const fileMetadata = await getFileMetadata(fileId, userId);
+  if (!fileMetadata) {
+    throw new Error('File not found');
+  }
 
-  const fileStream = await axios({
-    url: downloadUrl,
-    method: 'GET',
-    responseType: 'stream',
-  });
+  const { platform, message_id: messageId } = fileMetadata;
+  let fileStream;
+  let fileName;
+
+  if (platform === 'telegram') {
+    fileName = await getFileName(fileId);
+    const downloadUrl = await getTelegramFileUrl(fileId);
+
+    fileStream = await axios({
+      url: downloadUrl,
+      method: 'GET',
+      responseType: 'stream',
+    });
+
+  } else if (platform === 'discord') {
+    const { downloadUrl, fileName: discordFileName } = await discordBot.downloadDocument(userId, messageId);
+    fileName = discordFileName;
+
+    fileStream = await axios({
+      url: downloadUrl,
+      method: 'GET',
+      responseType: 'stream',
+    });
+  } else {
+    throw new Error('Invalid platform specified');
+  }
 
   await logActivity(fileId, userId, 'Download', `Downloaded file: ${fileName}`);
 
   return fileStream;
+};
+
+const downloadFilesAsZip = async (req) => {
+  const sessionToken = req.headers.authorization;
+  const { fileIds } = req.body;
+
+  if (!sessionToken) {
+      throw new Error('Unauthorized');
+  }
+
+  const { userId } = await validateSession(sessionToken);
+
+  const zip = new JSZip();
+
+  for (const fileId of fileIds) {
+      const fileMetadata = await getFileMetadata(fileId, userId);
+      if (!fileMetadata) {
+          throw new Error(`File not found: ${fileId}`);
+      }
+
+      const { platform, message_id: messageId } = fileMetadata;
+      let fileStream;
+      let fileName;
+
+      if (platform === 'telegram') {
+          fileName = await getFileName(fileId);
+          const downloadUrl = await getTelegramFileUrl(fileId);
+
+          const response = await axios({
+              url: downloadUrl,
+              method: 'GET',
+              responseType: 'arraybuffer',
+          });
+          fileStream = response.data;
+      } else if (platform === 'discord') {
+          const { downloadUrl, fileName: discordFileName } = await discordBot.downloadDocument(userId, messageId);
+          fileName = discordFileName;
+
+          const response = await axios({
+              url: downloadUrl,
+              method: 'GET',
+              responseType: 'arraybuffer',
+          });
+          fileStream = response.data;
+      } else {
+          throw new Error('Invalid platform specified');
+      }
+
+      zip.file(fileName, fileStream);
+  }
+
+  const zipStream = new PassThrough();
+  zip.generateNodeStream({ type: 'nodebuffer', streamFiles: true })
+      .pipe(zipStream);
+
+  return zipStream;
 };
 
 const deleteFile = async (req) => {
@@ -136,17 +259,28 @@ const deleteFile = async (req) => {
   const { userId } = await validateSession(sessionToken);
 
   for (const id of fileIds) {
+    const fileMetadata = await getFileMetadata(id, userId);
+    if (!fileMetadata) {
+      throw new Error(`File with ID ${id} not found`);
+    }
+
+    const platform = fileMetadata.platform;
+
     try {
-      // Attempt to delete the file from Telegram
-      await deleteFromTelegram(id, userId);
-    } catch (error) {
-      // Check if the error is related to the message not being found or cannot be deleted on Telegram
-      if (error.response && error.response.body && (error.response.body.description.includes('message to delete not found') || error.response.body.description.includes("message can't be deleted for everyone"))) {
-        console.warn(`Message for file ID ${id} cannot be deleted on Telegram:`, error.response.body.description);
-        // Continue with deleting the file metadata and activity logs even if the Telegram message cannot be found or deleted
+      if (platform === 'telegram') {
+        await deleteFromTelegram(id, userId);
+      } else if (platform === 'discord') {
+        await deleteFromDiscord(id, userId);
       } else {
-        // If the error is something else, rethrow it to be handled by the calling function
-        throw error;
+        throw new Error('Invalid platform specified');
+      }
+    } catch (error) {
+      if (platform === 'telegram' && error.response && error.response.body && 
+          (error.response.body.description.includes('message to delete not found') || 
+           error.response.body.description.includes("message can't be deleted for everyone"))) {
+        console.warn(`Message for file ID ${id} cannot be deleted on Telegram:`, error.response.body.description);
+      } else {
+        throw error;  // Rethrow for Discord or other unexpected errors
       }
     }
 
@@ -200,7 +334,11 @@ const getSharedFile = async (req) => {
   const { token } = req.params;
 
   const shareLinkResult = await pool.query(
-    'SELECT file_id, file_name, expiration_date FROM share_links WHERE token = $1',
+    `SELECT sl.file_id, sl.file_name, sl.expiration_date, u.platform, u.id, f.message_id
+     FROM share_links sl
+     JOIN files f ON sl.file_id = f.file_id
+     JOIN users u ON f.chat_id = u.id
+     WHERE sl.token = $1`,
     [token]
   );
 
@@ -208,24 +346,40 @@ const getSharedFile = async (req) => {
     throw new Error('Invalid or expired link');
   }
 
-  const { file_id: fileId, file_name: fileName, expiration_date: expirationDate } = shareLinkResult.rows[0];
+  const { file_id: fileId, file_name: fileName, expiration_date: expirationDate, platform: platform, id: userId, message_id: messageId } = shareLinkResult.rows[0];
   const currentTime = new Date();
 
   if (currentTime > new Date(expirationDate)) {
     throw new Error('Link has expired');
   }
 
-  const file = await telegramBot.getFile(fileId);
-  const filePath = file.file_path;
-  const downloadUrl = `https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${filePath}`;
+  let fileStream;
 
-  const fileStream = await axios({
-    url: downloadUrl,
-    method: 'GET',
-    responseType: 'stream',
-  });
+  if (platform === 'telegram') {
+    const file = await telegramBot.getFile(fileId);
+    const filePath = file.file_path;
+    const downloadUrl = `https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${filePath}`;
 
-  return { fileStream, fileName };
+    fileStream = await axios({
+      url: downloadUrl,
+      method: 'GET',
+      responseType: 'stream',
+    });
+
+    return { fileStream: fileStream.data, fileName };
+  } else if (platform === 'discord') {
+    const { downloadUrl } = await discordBot.downloadDocument(userId, messageId);
+    return {
+      fileStream: axios({
+        url: downloadUrl,
+        method: 'GET',
+        responseType: 'stream',
+      }),
+      fileName,
+    };
+  } else {
+    throw new Error('Invalid platform specified');
+  }
 };
 
 const getFileName = async (fileId) => {
@@ -267,6 +421,23 @@ const deleteFromTelegram = async (fileId, userId) => {
     }
   }
 };
+
+const deleteFromDiscord = async (fileId, userId) => {
+  const result = await pool.query('SELECT message_id FROM files WHERE file_id = $1 AND chat_id = $2', [fileId, userId]);
+
+  if (result.rows.length === 0) {
+    throw new Error('File not found');
+  }
+
+  const { message_id: messageId} = result.rows[0];
+
+  try {
+    await discordBot.deleteMessage(userId, messageId);
+  } catch (error) {
+    console.error('Error deleting Discord message:', error);
+    throw new Error('Failed to delete message from Discord');
+  }
+}
 
 const deleteFromDatabase = async (fileId, userId) => {
   const client = await pool.connect();
@@ -361,6 +532,7 @@ const validateSession = async (sessionToken) => {
 module.exports = {
   uploadFile,
   downloadFile,
+  downloadFilesAsZip,
   deleteFile,
   renameFile,
   shareFile,

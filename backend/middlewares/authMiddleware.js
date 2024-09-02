@@ -1,4 +1,3 @@
-// middlewares/authMiddleware.js
 const { pool } = require('../db');
 
 const authMiddleware = async (req, res, next) => {

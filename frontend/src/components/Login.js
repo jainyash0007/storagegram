@@ -1,11 +1,23 @@
 import React, { useEffect } from 'react';
 import { Button, Container, Typography } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 function Login({ onLogin }) {
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
+    const urlParams = new URLSearchParams(location.search);
+    const token = urlParams.get('token');
+    const platform = urlParams.get('platform');
+
+    if (token && platform) {
+      localStorage.setItem('sessionToken', token);
+      localStorage.setItem('platform', platform);
+      onLogin();
+      navigate('/');  // Redirect to the home page or authenticated area
+    }
+
     const script = document.createElement('script');
     script.src = 'https://telegram.org/js/telegram-widget.js?4';
     script.async = true;
@@ -17,8 +29,6 @@ function Login({ onLogin }) {
     document.getElementById('telegram-login').appendChild(script);
 
     window.handleTelegramAuth = (user) => {
-      // console.log('Authenticated user:', user);
-
       fetch('http://localhost:3000/api/auth/telegram', {
         method: 'POST',
         headers: {
@@ -30,6 +40,7 @@ function Login({ onLogin }) {
         .then(data => {
           if (data.success) {
             localStorage.setItem('sessionToken', data.token);
+            localStorage.setItem('platform', 'telegram');
             onLogin();
             navigate('/');
           } else {
@@ -37,23 +48,21 @@ function Login({ onLogin }) {
           }
         });
     };
-  }, [onLogin, navigate]);
+  }, [onLogin, navigate, location]);
 
   const handleDiscordLogin = () => {
-    onLogin();
-    navigate('/');
+    const clientId = process.env.REACT_APP_DISCORD_CLIENT_ID;
+    const redirectUri = encodeURIComponent('http://localhost:3000/api/auth/discord/callback');
+    const discordAuthUrl = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=identify&state=discord`;
+    
+    window.location.href = discordAuthUrl;
   };
 
   return (
     <Container>
       <Typography variant="h4" gutterBottom>Login to Storagegram</Typography>
       <div id="telegram-login"></div>
-      <Button
-        variant="contained"
-        color="primary"
-        onClick={handleDiscordLogin}
-        style={{ marginTop: '20px' }}
-      >
+      <Button variant="contained" color="primary" onClick={handleDiscordLogin} style={{ marginTop: '20px' }}>
         Login with Discord
       </Button>
     </Container>

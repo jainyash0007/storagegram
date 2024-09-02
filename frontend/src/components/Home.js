@@ -6,6 +6,7 @@ import LogoutButton from './LogoutButton';
 import { AppBar, Toolbar, Typography, Container, Box, Breadcrumbs, Link, IconButton, Menu, TextField, InputAdornment } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
+import { Link as RouterLink } from 'react-router-dom';
 
 function Home() {
   const [files, setFiles] = useState([]);
@@ -84,7 +85,7 @@ function Home() {
       {/* AppBar with Search Bar and Logout Button */}
       <AppBar position="static">
         <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1, marginLeft: 1 }}>
+          <Typography variant="h6" component={RouterLink} to="/" sx={{ flexGrow: 1, marginLeft: 1, textDecoration: 'none', color: 'inherit' }}>
             Storagegram
           </Typography>
           <TextField

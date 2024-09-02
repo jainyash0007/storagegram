@@ -17,6 +17,13 @@ function UploadButton({ refreshFilesAndFolders, currentFolderId, handleMenuClose
   const uploadFile = (selectedFile) => {
     const formData = new FormData();
     formData.append('file', selectedFile);
+    const platform = localStorage.getItem('platform');
+
+    if (!platform) {
+        alert("Platform not found. Please log in again.");
+        return;
+    }
+    formData.append('platform', platform);
     if (currentFolderId) {
       formData.append('folderId', currentFolderId);
     }

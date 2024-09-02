@@ -23,7 +23,7 @@ const renameFolder = async (req) => {
   const { userId } = await validateSession(sessionToken);
 
   const result = await pool.query(
-    'UPDATE folders SET folder_name = $1, modified_at = NOW() WHERE folder_id = $2 AND user_id = $3 RETURNING *',
+    'UPDATE folders SET folder_name = $1, last_modified_date = NOW() WHERE folder_id = $2 AND user_id = $3 RETURNING *',
     [folderName, folderId, userId]
   );
 

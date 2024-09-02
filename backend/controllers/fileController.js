@@ -24,6 +24,18 @@ const downloadFile = async (req, res) => {
   }
 };
 
+const downloadFilesAsZip = async (req, res) => {
+  try {
+      const zipStream = await fileService.downloadFilesAsZip(req);
+      res.setHeader('Content-Disposition', 'attachment; filename="files.zip"');
+      res.setHeader('Content-Type', 'application/zip');
+      zipStream.pipe(res);
+  } catch (error) {
+      console.error('Error downloading files:', error);
+      res.status(500).json({ error: 'Failed to download files' });
+  }
+};
+
 const deleteFile = async (req, res) => {
   try {
     const result = await fileService.deleteFile(req);
@@ -59,8 +71,13 @@ const getSharedFile = async (req, res) => {
     const { fileStream, fileName } = await fileService.getSharedFile(req);
 
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-    res.setHeader('Content-Type', fileStream.headers['content-type'] || 'application/octet-stream');
-    fileStream.data.pipe(res);
+    res.setHeader('Content-Type', 'application/octet-stream');
+    if (typeof fileStream.pipe === 'function') {
+      fileStream.pipe(res);
+    } else {
+      const resolvedStream = await fileStream;
+      resolvedStream.data.pipe(res);
+    }
   } catch (error) {
     if (error.message === 'Invalid or expired link' || error.message === 'Link has expired') {
       res.status(404).json({ error: error.message });
@@ -84,6 +101,7 @@ const getFileActivity = async (req, res) => {
 module.exports = {
   uploadFile,
   downloadFile,
+  downloadFilesAsZip,
   deleteFile,
   renameFile,
   shareFile,
