@@ -47,13 +47,16 @@ Storagegram is a cloud-based, cross-platform file management system that integra
 # **Setup and Installation**
 ## 1. Clone the Repository:
 git clone https://github.com/jainyash0007/storagegram.git
+
 cd storagegram
 
 ## 2. Install Dependencies:
 cd frontend
+
 npm install
 
 cd ../backend
+
 npm install
 
 ## 3. Change the .env.example files in both frontend and backend to .env and enter the necessary variables in them as given.
@@ -63,6 +66,7 @@ npm install
 1. Open Telegram and search for BotFather.
 2. Start a chat and use the /newbot command to create your bot.
 3. Follow the prompts and note down the API Token, Bot ID and Bot Username you receive.
+
 • Configure Your Bot in the App:
 In your .env file, add:
 TELEGRAM_BOT_TOKEN=token_from_telegram_bot
@@ -75,6 +79,7 @@ TELEGRAM_BOT_USERNAME=bot_username
 2. Click New Application, give it a name, and click Create.
 3. Under the Bot tab, click Add Bot, and confirm.
 4. Copy the Token and add it to your .env file.
+
 • Configure Bot Permissions:
 1. Under the OAuth2 section, create a bot invite link with the required permissions for file management.
 2. Add the Bot Token in your .env file:
