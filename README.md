@@ -68,7 +68,9 @@ npm install
 3. Follow the prompts and note down the API Token, Bot ID and Bot Username you receive.
 
 • Configure Your Bot in the App:
+
 In your .env file, add:
+
 TELEGRAM_BOT_TOKEN=token_from_telegram_bot
 TELEGRAM_BOT_ID=bot_id
 TELEGRAM_BOT_USERNAME=bot_username
@@ -82,7 +84,8 @@ TELEGRAM_BOT_USERNAME=bot_username
 
 • Configure Bot Permissions:
 1. Under the OAuth2 section, create a bot invite link with the required permissions for file management.
-2. Add the Bot Token in your .env file:
+2. In your .env file, add:
+
 DISCORD_CLIENT_ID=client_id
 DISCORD_CLIENT_SECRET=client_secret
 DISCORD_BOT_TOKEN=discord_bot_token
