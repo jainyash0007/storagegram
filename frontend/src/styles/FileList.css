@@ -1,0 +1,18 @@
+.file-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-start;
+    padding: 10px 0;
+    background-color: #fff;
+    border-bottom: 1px solid #ccc;
+    z-index: 1000;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+  }
+  
+  .context-menu-item {
+    cursor: context-menu;
+  }
+  

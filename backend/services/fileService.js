@@ -4,7 +4,11 @@ const discordBot = require('../discordBot');
 const axios = require('axios');
 const uuid = require('uuid');
 const JSZip = require('jszip');
-const { PassThrough } = require('stream');
+const fs = require('fs');
+let fetch;
+(async () => {
+  fetch = (await import('node-fetch')).default;
+})();
 
 const uploadFile = async (req) => {
   const sessionToken = req.headers.authorization;
@@ -67,19 +71,23 @@ const uploadFile = async (req) => {
 const uploadToTelegram = async (fileType, userId, file) => {
   let uploadPromise;
 
+  const options = {
+    caption: file.name,
+    filename: file.name,  // Specify the filename explicitly to avoid deprecation warning
+  };
   if (fileType === 'photo') {
-    uploadPromise = telegramBot.sendPhoto(userId, file.data, { caption: file.name });
+    uploadPromise = telegramBot.sendPhoto(userId, file.data, options);
   } else if (fileType === 'video') {
-    uploadPromise = telegramBot.sendVideo(userId, file.data, { caption: file.name });
+    uploadPromise = telegramBot.sendVideo(userId, file.data, options);
   } else {
-    uploadPromise = telegramBot.sendDocument(userId, file.data, { caption: file.name });
+    uploadPromise = telegramBot.sendDocument(userId, file.data, options);
   }
 
   return uploadPromise;
 };
 
 const uploadToDiscord = async (fileType, userId, file) => {
-  return discordBot.sendDocument(userId, file); // Simplified, as sendDocument handles the file object correctly
+  return discordBot.sendDocument(userId, file);
 };
 
 const extractFileData = (fileType, message) => {
@@ -101,19 +109,25 @@ const extractFileData = (fileType, message) => {
 };
 
 const getFileMetadata = async (fileId, userId) => {
-  const result = await pool.query(
-    `SELECT f.message_id, u.platform
-     FROM files f
-     JOIN users u ON f.chat_id = u.id
-     WHERE f.file_id = $1 AND f.chat_id = $2`,
-    [fileId, userId]
-  );
+  const query = `
+    SELECT f.message_id, u.platform, f.file_name
+    FROM files f
+    JOIN users u ON f.chat_id = u.id
+    WHERE f.file_id = $1 AND f.chat_id = $2
+  `;
 
-  if (result.rows.length === 0) {
-    return null;
+  try {
+    const result = await pool.query(query, [fileId, userId]);
+
+    if (result.rows.length === 0) {
+      console.error(`File with ID ${fileId} not found for user ${userId}`);
+      return null;  // Return null to signal no result found
+    }
+    return result.rows[0];
+  } catch (error) {
+    console.error('Error fetching file metadata:', error);
+    throw new Error('Failed to fetch file metadata');
   }
-
-  return result.rows[0];
 };
 
 const saveFileMetadata = async (fileId, userId, fileName, fileSize, fileType, messageId, folderId) => {
@@ -144,7 +158,7 @@ const logActivity = async (fileId, userId, activityType, details) => {
   }
 };
 
-const downloadFile = async (req) => {
+const downloadFile = async (req, res) => {
   const sessionToken = req.headers.authorization;
   const { fileId } = req.params;
 
@@ -154,97 +168,102 @@ const downloadFile = async (req) => {
 
   const { userId } = await validateSession(sessionToken);
 
-  const fileMetadata = await getFileMetadata(fileId, userId);
-  if (!fileMetadata) {
-    throw new Error('File not found');
-  }
+  try {
+    const [fileMetadata, downloadUrl] = await Promise.all([
+      getFileMetadata(fileId, userId),
+      getDownloadUrl(fileId, userId),
+    ]);
 
-  const { platform, message_id: messageId } = fileMetadata;
-  let fileStream;
-  let fileName;
+    if (!fileMetadata) {
+      throw new Error(`File metadata not found for fileId: ${fileId} and userId: ${userId}`);
+    }
 
-  if (platform === 'telegram') {
-    fileName = await getFileName(fileId);
-    const downloadUrl = await getTelegramFileUrl(fileId);
+    const fileStream = await fetch(downloadUrl);
+    const buffer = await fileStream.arrayBuffer();
+    const uint8Array = new Uint8Array(buffer);
 
-    fileStream = await axios({
-      url: downloadUrl,
-      method: 'GET',
-      responseType: 'stream',
+    const contentLength = fileStream.headers.get('content-length');
+    const contentType = fileStream.headers.get('content-type') || 'application/octet-stream';
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${fileMetadata.file_name}"`);
+    res.setHeader('Content-Length', contentLength);
+    res.isBase64Encoded = true;
+
+    res.send(Buffer.from(uint8Array).toString('base64'));
+
+    // Log activity asynchronously
+    setImmediate(() => {
+      logActivity(fileId, userId, 'Download', `Downloaded file: ${fileMetadata.file_name}`)
+        .catch((err) => console.error('Error logging activity:', err));
     });
 
-  } else if (platform === 'discord') {
-    const { downloadUrl, fileName: discordFileName } = await discordBot.downloadDocument(userId, messageId);
-    fileName = discordFileName;
-
-    fileStream = await axios({
-      url: downloadUrl,
-      method: 'GET',
-      responseType: 'stream',
-    });
-  } else {
-    throw new Error('Invalid platform specified');
+  } catch (error) {
+    console.error(`Error in downloadFile for fileId ${fileId}:`, error);
+    throw new Error('Failed to download file');
   }
-
-  await logActivity(fileId, userId, 'Download', `Downloaded file: ${fileName}`);
-
-  return fileStream;
 };
 
-const downloadFilesAsZip = async (req) => {
+const getDownloadUrl = async (fileId, userId) => {
+  try {
+    const fileMetadata = await getFileMetadata(fileId, userId); // Already optimized
+    const { platform, message_id: messageId } = fileMetadata;
+
+    if (platform === 'telegram') {
+      return getTelegramFileUrl(fileId);
+    } else if (platform === 'discord') {
+      const { downloadUrl } = await discordBot.downloadDocument(userId, messageId);
+      return downloadUrl;
+    } else {
+      throw new Error('Invalid platform specified');
+    }
+  } catch (error) {
+    console.error('Error in getDownloadUrl:', error);
+    throw new Error('Failed to get download URL');
+  }
+};
+
+const downloadFilesAsZip = async (req, res) => {
   const sessionToken = req.headers.authorization;
   const { fileIds } = req.body;
 
   if (!sessionToken) {
-      throw new Error('Unauthorized');
+    throw new Error('Unauthorized');
   }
 
   const { userId } = await validateSession(sessionToken);
 
   const zip = new JSZip();
 
-  for (const fileId of fileIds) {
-      const fileMetadata = await getFileMetadata(fileId, userId);
-      if (!fileMetadata) {
-          throw new Error(`File not found: ${fileId}`);
-      }
+  // Fetch all file URLs and metadata in parallel
+  const filePromises = fileIds.map(async (fileId) => {
+    const [fileMetadata, downloadUrl] = await Promise.all([
+      getFileMetadata(fileId, userId),
+      getDownloadUrl(fileId, userId)
+    ]);
 
-      const { platform, message_id: messageId } = fileMetadata;
-      let fileStream;
-      let fileName;
+    if (!fileMetadata) {
+      throw new Error(`File not found: ${fileId}`);
+    }
 
-      if (platform === 'telegram') {
-          fileName = await getFileName(fileId);
-          const downloadUrl = await getTelegramFileUrl(fileId);
+    const fileName = fileMetadata.file_name;
+    const fileStream = await fetch(downloadUrl);
+    const fileArrayBuffer = await fileStream.arrayBuffer();
 
-          const response = await axios({
-              url: downloadUrl,
-              method: 'GET',
-              responseType: 'arraybuffer',
-          });
-          fileStream = response.data;
-      } else if (platform === 'discord') {
-          const { downloadUrl, fileName: discordFileName } = await discordBot.downloadDocument(userId, messageId);
-          fileName = discordFileName;
+    zip.file(fileName, fileArrayBuffer);
+  });
 
-          const response = await axios({
-              url: downloadUrl,
-              method: 'GET',
-              responseType: 'arraybuffer',
-          });
-          fileStream = response.data;
-      } else {
-          throw new Error('Invalid platform specified');
-      }
+  // Wait for all files to be added to the zip
+  await Promise.all(filePromises);
 
-      zip.file(fileName, fileStream);
-  }
+  const zipBase64 = await zip.generateAsync({ type: 'base64' });
 
-  const zipStream = new PassThrough();
-  zip.generateNodeStream({ type: 'nodebuffer', streamFiles: true })
-      .pipe(zipStream);
+  res.setHeader('Content-Disposition', 'attachment; filename="files.zip"');
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Encoding', 'base64');
 
-  return zipStream;
+  // Send the binary zip file directly
+  res.send(zipBase64);
 };
 
 const deleteFile = async (req) => {
@@ -330,55 +349,66 @@ const shareFile = async (req) => {
   return shareLink;
 };
 
-const getSharedFile = async (req) => {
-  const { token } = req.params;
+const getSharedFile = async (req, res) => {
+  try {
+    const { token } = req.params;
 
-  const shareLinkResult = await pool.query(
-    `SELECT sl.file_id, sl.file_name, sl.expiration_date, u.platform, u.id, f.message_id
-     FROM share_links sl
-     JOIN files f ON sl.file_id = f.file_id
-     JOIN users u ON f.chat_id = u.id
-     WHERE sl.token = $1`,
-    [token]
-  );
+    // Fetch the file metadata using the shared link token
+    const shareLinkResult = await pool.query(
+      `SELECT sl.file_id, sl.file_name, sl.expiration_date, u.platform, u.id, f.message_id
+       FROM share_links sl
+       JOIN files f ON sl.file_id = f.file_id
+       JOIN users u ON f.chat_id = u.id
+       WHERE sl.token = $1`,
+      [token]
+    );
 
-  if (shareLinkResult.rows.length === 0) {
-    throw new Error('Invalid or expired link');
-  }
+    if (shareLinkResult.rows.length === 0) {
+      throw new Error('Invalid or expired link');
+    }
 
-  const { file_id: fileId, file_name: fileName, expiration_date: expirationDate, platform: platform, id: userId, message_id: messageId } = shareLinkResult.rows[0];
-  const currentTime = new Date();
+    const { file_id: fileId, file_name: fileName, expiration_date: expirationDate, platform, id: userId, message_id: messageId } = shareLinkResult.rows[0];
+    const currentTime = new Date();
 
-  if (currentTime > new Date(expirationDate)) {
-    throw new Error('Link has expired');
-  }
+    // Check if the link has expired
+    if (currentTime > new Date(expirationDate)) {
+      throw new Error('Link has expired');
+    }
 
-  let fileStream;
+    let downloadUrl;
 
-  if (platform === 'telegram') {
-    const file = await telegramBot.getFile(fileId);
-    const filePath = file.file_path;
-    const downloadUrl = `https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${filePath}`;
+    // Fetch the download URL based on platform (Telegram or Discord)
+    if (platform === 'telegram') {
+      const file = await telegramBot.getFile(fileId);
+      const filePath = file.file_path;
+      downloadUrl = `https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${filePath}`;
+    } else if (platform === 'discord') {
+      const result = await discordBot.downloadDocument(userId, messageId);
+      downloadUrl = result.downloadUrl;
+    } else {
+      throw new Error('Invalid platform specified');
+    }
 
-    fileStream = await axios({
-      url: downloadUrl,
-      method: 'GET',
-      responseType: 'stream',
-    });
+    const fileStream = await fetch(downloadUrl);
+    const buffer = await fileStream.arrayBuffer();
+    const uint8Array = new Uint8Array(buffer);
+    
+    const contentType = fileStream.headers.get('content-type') || 'application/octet-stream';
+    const contentLength = fileStream.headers.get('content-length');
 
-    return { fileStream: fileStream.data, fileName };
-  } else if (platform === 'discord') {
-    const { downloadUrl } = await discordBot.downloadDocument(userId, messageId);
-    return {
-      fileStream: axios({
-        url: downloadUrl,
-        method: 'GET',
-        responseType: 'stream',
-      }),
-      fileName,
-    };
-  } else {
-    throw new Error('Invalid platform specified');
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Length', contentLength);
+    res.isBase64Encoded = true;
+
+    res.send(Buffer.from(uint8Array).toString('base64'));
+  } catch (error) {
+    if (error.message === 'Invalid or expired link' || error.message === 'Link has expired') {
+      res.status(404).json({ error: error.message });
+    } else {
+      console.error('Error retrieving shared file:', error);
+      res.status(500).json({ error: 'Failed to retrieve the shared file' });
+    }
   }
 };
 
@@ -483,7 +513,7 @@ const generateShareLink = async (fileId, userId) => {
   }
 
   const fileName = result.rows[0].file_name;
-  return { success: true, shareableLink: `http://localhost:3000/api/files/share/${token}`, expirationDate, fileName };
+  return { success: true, shareableLink: `${process.env.SHARE_API_URL}/${token}?fileName=${encodeURIComponent(fileName)}`, expirationDate, fileName };
 };
 
 const fetchActivityLogs = async (fileId) => {

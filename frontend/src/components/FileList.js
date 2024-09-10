@@ -13,6 +13,7 @@ import ShareIcon from '@mui/icons-material/Share';
 import FileCopyIcon from '@mui/icons-material/FileCopy';
 import FolderIcon from '@mui/icons-material/Folder';
 import { useLocation } from 'react-router-dom';
+import '../styles/FileList.css';
 
 function FileList({ files, folders, refreshFilesAndFolders, onFolderClick, searchQuery }) {
   const [downloadingFileId, setDownloadingFileId] = useState(null);
@@ -42,6 +43,7 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick, searc
 
   const combinedItems = [...folders.map(folder => ({ ...folder, type: 'folder' })), ...files.map(file => ({ ...file, type: 'file' }))];
 
+  const apiUrl = process.env.REACT_APP_API_URL;
   const formatFileSize = (sizeInBytes) => {
     if (sizeInBytes === 0) return '0 Bytes';
     const k = 1024;
@@ -82,7 +84,7 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick, searc
     setDownloadingFileId(fileId);
     setErrorMessage(null);
 
-    fetch(`http://localhost:3000/api/files/download/${fileId}`, {
+    fetch(`${apiUrl}/files/download/${fileId}`, {
       headers: {
         'Authorization': sessionToken,
       }
@@ -92,9 +94,16 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick, searc
         if (!response.ok) {
           throw new Error('Failed to download file');
         }
-        return response.blob();
+        return response.text();
       })
-      .then(blob => {
+      .then(base64String  => {
+        const byteCharacters = atob(base64String);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'application/octet-stream' });
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
@@ -121,7 +130,7 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick, searc
 
   const handleRenameSubmit = (item) => {
     const sessionToken = localStorage.getItem('sessionToken');
-    const url = item.type === 'folder' ? `http://localhost:3000/api/folders/${item.folder_id}` : `http://localhost:3000/api/files/rename/${item.file_id}`;
+    const url = item.type === 'folder' ? `${apiUrl}/folders/${item.folder_id}` : `${apiUrl}/files/rename/${item.file_id}`;
     const body = item.type === 'folder' ? { folderName: newFolderName } : { newFileName };
 
     fetch(url, {
@@ -161,7 +170,7 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick, searc
 
     if (!confirmDelete) return;
 
-    const url = item.type === 'folder' ? `http://localhost:3000/api/folders/${item.folder_id}` : `http://localhost:3000/api/files/delete/${item.file_id}`;
+    const url = item.type === 'folder' ? `${apiUrl}/folders/${item.folder_id}` : `${apiUrl}/files/delete/${item.file_id}`;
 
     fetch(url, {
       method: 'DELETE',
@@ -195,7 +204,7 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick, searc
     if (!confirmDelete) return;
 
     const promises = selectedFiles.map(fileId =>
-      fetch(`http://localhost:3000/api/files/delete/${fileId}`, {
+      fetch(`${apiUrl}/files/delete/${fileId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': sessionToken,
@@ -218,7 +227,7 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick, searc
     const sessionToken = localStorage.getItem('sessionToken');
     const fileIds = selectedFiles;
 
-    fetch('http://localhost:3000/api/files/download/zip', {
+    fetch(`${apiUrl}/files/download/zip`, {
         method: 'POST',
         headers: {
             'Authorization': sessionToken,
@@ -230,16 +239,23 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick, searc
         if (!response.ok) {
             throw new Error('Failed to download files');
         }
-        return response.blob();
+        return response.text();
     })
-    .then(blob => {
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', 'files.zip');
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+    .then(base64String => {
+      const byteCharacters = atob(base64String);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'application/zip' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'files.zip');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     })
     .catch(error => {
         console.error('Error downloading files:', error);
@@ -253,7 +269,7 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick, searc
   };
 
   const generateShareLink = (fileId) => {
-    fetch(`http://localhost:3000/api/files/share/${fileId}`, {
+    fetch(`${apiUrl}/files/share/${fileId}`, {
       method: 'POST',
       headers: {
         'Authorization': localStorage.getItem('sessionToken'),
@@ -291,7 +307,7 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick, searc
   };
 
   const handleFileActivity = () => {
-    fetch(`http://localhost:3000/api/files/${selectedFile.file_id}/activity`, {
+    fetch(`${apiUrl}/files/${selectedFile.file_id}/activity`, {
       headers: {
         'Authorization': localStorage.getItem('sessionToken'),
       }
@@ -328,31 +344,11 @@ function FileList({ files, folders, refreshFilesAndFolders, onFolderClick, searc
       {/* Container for Buttons */}
       <div style={{ position: 'relative', height: '60px' }}>
         {selectedFiles.length > 1 && (
-          <div style={{ 
-            position: 'absolute', 
-            top: 0, 
-            left: 0, 
-            right: 0, 
-            zIndex: 1000, 
-            backgroundColor: '#fff', 
-            padding: '10px 0', 
-            display: 'flex', 
-            justifyContent: 'flex-start', 
-            gap: '10px', 
-            borderBottom: '1px solid #ccc' 
-          }}>
-            <Button
-              variant="contained"
-              color="secondary"
-              onClick={handleBulkDelete}
-            >
+          <div className="file-actions">
+            <Button variant="contained" color="secondary" onClick={handleBulkDelete}>
               Delete Selected Files
             </Button>
-            <Button
-                variant="contained"
-                color="primary"
-                onClick={handleBulkDownload}
-            >
+            <Button variant="contained" color="primary" onClick={handleBulkDownload}>
                 Download Selected Files
             </Button>
           </div>

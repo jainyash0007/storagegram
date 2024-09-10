@@ -1,4 +1,3 @@
-// controllers/fileController.js
 const fileService = require('../services/fileService');
 
 const uploadFile = async (req, res) => {
@@ -13,11 +12,7 @@ const uploadFile = async (req, res) => {
 
 const downloadFile = async (req, res) => {
   try {
-    const result = await fileService.downloadFile(req);
-    res.setHeader('Content-Disposition', result.headers['content-disposition']);
-    res.setHeader('Content-Type', result.headers['content-type']);
-
-    result.data.pipe(res);
+    const result = await fileService.downloadFile(req, res);
   } catch (error) {
     console.error('Error downloading file:', error);
     res.status(500).json({ error: 'Failed to download file' });
@@ -26,10 +21,7 @@ const downloadFile = async (req, res) => {
 
 const downloadFilesAsZip = async (req, res) => {
   try {
-      const zipStream = await fileService.downloadFilesAsZip(req);
-      res.setHeader('Content-Disposition', 'attachment; filename="files.zip"');
-      res.setHeader('Content-Type', 'application/zip');
-      zipStream.pipe(res);
+      await fileService.downloadFilesAsZip(req, res);
   } catch (error) {
       console.error('Error downloading files:', error);
       res.status(500).json({ error: 'Failed to download files' });
@@ -68,16 +60,7 @@ const shareFile = async (req, res) => {
 
 const getSharedFile = async (req, res) => {
   try {
-    const { fileStream, fileName } = await fileService.getSharedFile(req);
-
-    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-    res.setHeader('Content-Type', 'application/octet-stream');
-    if (typeof fileStream.pipe === 'function') {
-      fileStream.pipe(res);
-    } else {
-      const resolvedStream = await fileStream;
-      resolvedStream.data.pipe(res);
-    }
+    await fileService.getSharedFile(req, res);
   } catch (error) {
     if (error.message === 'Invalid or expired link' || error.message === 'Link has expired') {
       res.status(404).json({ error: error.message });

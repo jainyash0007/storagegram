@@ -1,0 +1,14 @@
+.app-bar {
+    flex-grow: 1;
+    margin-left: 1px;
+    text-decoration: none;
+    color: inherit;
+  }
+  
+  .search-field {
+    margin-right: 115px;
+    background-color: white;
+    border-radius: 4px;
+    width: 500px;
+  }
+  

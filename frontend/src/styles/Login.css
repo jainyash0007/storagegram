@@ -1,0 +1,84 @@
+.brand-logo {
+  width: 150px;
+  margin: 0 auto;
+  margin-top: -20px;
+  display: block;
+  margin-bottom: 20px;
+}
+
+.top-text {
+    text-align: center;
+    font-size: 22px;
+    font-weight: bold;
+    margin-bottom: 20px;
+    color: #333;
+  }
+  
+  .title {
+    font-size: 24px;
+    padding-bottom: 20px;
+    text-align: center;
+    color: #333;
+  }
+  
+  .login-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    height: 100vh;
+    background-color: #f4f4f4;
+  }
+  
+  .login-form {
+    padding: 40px;
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    text-align: center;
+  }
+  
+  .button {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 10px;
+    border-radius: 5px;
+    font-family: 'Roboto', sans-serif;
+    font-size: 18px;
+    color: white;
+    background-color: #0088cc;
+    width: 100%;
+    max-width: 300px;
+    cursor: pointer;
+    text-decoration: none;
+    margin-top: 10px;
+  }
+  
+  .button:hover {
+    background-color: #0077b3;
+  }
+  
+  .discord-button {
+    background-color: #7289da;
+    padding: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-size: 18px;
+    cursor: pointer;
+    border-radius: 5px;
+    width: 100%;
+    max-width: 300px;
+  }
+  
+  .discord-button:hover {
+    background-color: #5a6fa1;
+  }
+  
+  .discord-logo {
+    height: 24px;
+    margin-right: 10px;
+  }
+  

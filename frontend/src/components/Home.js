@@ -7,6 +7,7 @@ import { AppBar, Toolbar, Typography, Container, Box, Breadcrumbs, Link, IconBut
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import { Link as RouterLink } from 'react-router-dom';
+import '../styles/Home.css';
 
 function Home() {
   const [files, setFiles] = useState([]);
@@ -17,9 +18,11 @@ function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const sessionToken = localStorage.getItem('sessionToken');
 
+  const apiUrl = process.env.REACT_APP_API_URL;
+
   const refreshFilesAndFolders = useCallback(() => {
     if (sessionToken) {
-      fetch(`http://localhost:3000/api/folders/${currentFolderId || ''}`, {
+      fetch(`${apiUrl}/folders/${currentFolderId || ''}`, {
         headers: {
           'Authorization': sessionToken
         },
@@ -37,7 +40,7 @@ function Home() {
         .catch(error => console.error('Error fetching files and folders:', error));
         
       if (currentFolderId) {
-        fetch(`http://localhost:3000/api/folders/path/${currentFolderId}`, {
+        fetch(`${apiUrl}/folders/path/${currentFolderId}`, {
           headers: {
             'Authorization': sessionToken
           },
@@ -85,7 +88,7 @@ function Home() {
       {/* AppBar with Search Bar and Logout Button */}
       <AppBar position="static">
         <Toolbar>
-          <Typography variant="h6" component={RouterLink} to="/" sx={{ flexGrow: 1, marginLeft: 1, textDecoration: 'none', color: 'inherit' }}>
+          <Typography variant="h6" component={RouterLink} to="/" className="app-bar">
             Storagegram
           </Typography>
           <TextField
@@ -93,6 +96,7 @@ function Home() {
             variant="outlined"
             value={searchQuery}
             onChange={handleSearchChange}
+            className="search-field"
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
@@ -100,9 +104,8 @@ function Home() {
                 </InputAdornment>
               ),
             }}
-            sx={{ marginRight: 115, bgcolor: 'white', borderRadius: 1, width: 500}} // Styling for better integration
           />
-          <LogoutButton /> {/* Positioned on the right side of the toolbar */}
+          <LogoutButton />
         </Toolbar>
       </AppBar>
 

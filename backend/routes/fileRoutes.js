@@ -10,7 +10,7 @@ router.post('/download/zip', authMiddleware, fileController.downloadFilesAsZip);
 router.delete('/delete/:fileId', authMiddleware, fileController.deleteFile);
 router.put('/rename/:fileId', authMiddleware, fileController.renameFile);
 router.post('/share/:fileId', authMiddleware, fileController.shareFile);
-router.get('/share/:token', fileController.getSharedFile);
+router.get('/share/token/:token', fileController.getSharedFile);
 router.get('/:fileId/activity', authMiddleware, fileController.getFileActivity);
 
 module.exports = router;

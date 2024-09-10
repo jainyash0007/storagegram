@@ -7,6 +7,8 @@ function UploadButton({ refreshFilesAndFolders, currentFolderId, handleMenuClose
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
 
+  const apiUrl = process.env.REACT_APP_API_URL;
+
   const handleFileChange = debounce((event) => {
     const selectedFile = event.target.files[0];
     if (selectedFile) {
@@ -38,7 +40,7 @@ function UploadButton({ refreshFilesAndFolders, currentFolderId, handleMenuClose
     setUploading(true);
 
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', 'http://localhost:3000/api/files/upload', true);
+    xhr.open('POST', `${apiUrl}/files/upload`, true);
 
     xhr.setRequestHeader('Authorization', sessionToken);
 

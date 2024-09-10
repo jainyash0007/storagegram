@@ -5,6 +5,8 @@ function FolderOperations({ refreshFilesAndFolders, currentFolderId, handleMenuC
   const [folderName, setFolderName] = useState('');
   const [open, setOpen] = useState(false);
 
+  const apiUrl = process.env.REACT_APP_API_URL;
+
   const handleCreateFolder = () => {
     const sessionToken = localStorage.getItem('sessionToken');
 
@@ -13,7 +15,7 @@ function FolderOperations({ refreshFilesAndFolders, currentFolderId, handleMenuC
       return;
     }
 
-    fetch('http://localhost:3000/api/folders', {
+    fetch(`${apiUrl}/folders`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

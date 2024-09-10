@@ -4,12 +4,13 @@ import { useNavigate } from 'react-router-dom';
 
 function LogoutButton() {
   const navigate = useNavigate();
+  const apiUrl = process.env.REACT_APP_API_URL;
 
   const handleLogout = () => {
     const token = localStorage.getItem('sessionToken');
 
     if (token) {
-      fetch('http://localhost:3000/api/auth/logout', {
+      fetch(`${apiUrl}/auth/logout`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

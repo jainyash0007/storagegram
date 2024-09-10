@@ -1,4 +1,3 @@
-// services/folderService.js
 const { pool } = require('../db');
 
 const createFolder = async (req) => {
@@ -62,13 +61,17 @@ const listFoldersAndFiles = async (req) => {
 
   const { userId } = await validateSession(sessionToken);
 
-  const folderQuery = folderId
-    ? 'SELECT * FROM folders WHERE user_id = $1 AND parent_folder_id = $2'
-    : 'SELECT * FROM folders WHERE user_id = $1 AND parent_folder_id IS NULL';
+  const folderQuery = `
+      SELECT * FROM folders 
+      WHERE user_id = $1 
+      ${folderId ? 'AND parent_folder_id = $2' : 'AND parent_folder_id IS NULL'}
+    `;
 
-  const fileQuery = folderId
-    ? 'SELECT * FROM files WHERE chat_id = $1 AND folder_id = $2'
-    : 'SELECT * FROM files WHERE chat_id = $1 AND folder_id IS NULL';
+    const fileQuery = `
+    SELECT * FROM files 
+    WHERE chat_id = $1 
+    ${folderId ? 'AND folder_id = $2' : 'AND folder_id IS NULL'}
+  `;
 
   const foldersResult = await pool.query(folderQuery, folderId ? [userId, folderId] : [userId]);
   const filesResult = await pool.query(fileQuery, folderId ? [userId, folderId] : [userId]);

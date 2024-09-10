@@ -1,4 +1,3 @@
-// controllers/folderController.js
 const folderService = require('../services/folderService');
 
 const createFolder = async (req, res) => {
@@ -33,7 +32,8 @@ const deleteFolder = async (req, res) => {
 
 const listFoldersAndFiles = async (req, res) => {
   try {
-    const result = await folderService.listFoldersAndFiles(req);
+    const folderId = req.params.folderId || null;
+    const result = await folderService.listFoldersAndFiles(req, folderId);
     res.json(result);
   } catch (error) {
     console.error('Error listing folders and files:', error);

@@ -25,6 +25,7 @@ const logout = async (req) => {
 };
 
 const telegramLogin = async (req) => {
+  console.log('Telegram login initiated');
   const { id, first_name, last_name, username, hash } = req.body.user;
 
   const dataCheckString = Object.keys(req.body.user)
@@ -33,12 +34,19 @@ const telegramLogin = async (req) => {
     .sort()
     .join('\n');
 
+  console.log('Data check string:', dataCheckString);
+
   const secret = crypto.createHash('sha256').update(process.env.TELEGRAM_BOT_TOKEN).digest();
   const computedHash = crypto.createHmac('sha256', secret).update(dataCheckString).digest('hex');
 
+  console.log('Data check string:', dataCheckString);
+
   if (computedHash !== hash) {
+    console.error('Hash mismatch: unauthorized request');
     throw new Error('Unauthorized request');
   }
+
+  console.log('Hash validated successfully');
 
   const userResult = await pool.query(
     `INSERT INTO users (id, first_name, last_name, username, platform, auth_date)
@@ -48,6 +56,8 @@ const telegramLogin = async (req) => {
      RETURNING id`,
      [id, first_name, last_name, username]
     );
+
+    console.log('User inserted/updated:', userResult.rows[0]);
   
     const userId = userResult.rows[0].id;
     const sessionToken = uuid.v4();
@@ -57,14 +67,19 @@ const telegramLogin = async (req) => {
       'INSERT INTO sessions (session_id, user_id, token, expires_at) VALUES ($1, $2, $3, $4)',
       [sessionToken, userId, sessionToken, expiresAt]
     );
+
+    console.log('Session token created:', sessionToken);
   
     return { success: true, token: sessionToken, platform: 'telegram' };
   };
   
   const discordLogin = async (code, state) => {
     // Step 1: Get Discord Token
+    console.log('Attempting to get Discord token with code:', code);
     const tokenResponse = await getDiscordToken(code);
+    console.log('Discord token response:', tokenResponse);
     const accessToken = tokenResponse.access_token;
+    console.log('Access token retrieved:', accessToken);
   
     // Step 2: Get User Info from Discord
     const discordUser = await getDiscordUserInfo(accessToken);
@@ -104,15 +119,22 @@ const telegramLogin = async (req) => {
   }
   
   const getDiscordToken = async (code) => {
-    const response = await axios.post('https://discord.com/api/oauth2/token', new URLSearchParams({
-        client_id: process.env.DISCORD_CLIENT_ID,
-        client_secret: process.env.DISCORD_CLIENT_SECRET,
-        grant_type: 'authorization_code',
-        code,
-        redirect_uri: process.env.DISCORD_REDIRECT_URI,
-    }));
-  
-    return response.data;
+    try {
+      console.log('Requesting Discord token...');
+      const response = await axios.post('https://discord.com/api/oauth2/token', new URLSearchParams({
+          client_id: process.env.DISCORD_CLIENT_ID,
+          client_secret: process.env.DISCORD_CLIENT_SECRET,
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: process.env.DISCORD_REDIRECT_URI,
+      }));
+
+      console.log('Discord token response:', response.data);
+      return response.data;
+  } catch (error) {
+      console.error('Error fetching Discord token:', error.response ? error.response.data : error.message);
+      throw new Error('Failed to get Discord token');
+  }
   };
   
   const getDiscordUserInfo = async (accessToken) => {
