@@ -2,15 +2,15 @@
 Storagegram is a cloud-based, cross-platform file management system that integrates with Telegram and Discord to enable users to manage file uploads, downloads, sharing, and more. This serverless application is built with modern web technologies and deployed using AWS services, ensuring scalability, low-latency, and high performance.
 
 ## Features
-### File Management: Upload, download, rename, delete, and share files across Telegram and Discord platforms.
-### Multi-Platform Support: Seamless integration with both Telegram API and Discord.js.
-### Real-Time UI: A responsive React.js frontend allowing users to organize files in folders and navigate through directories.
-### Activity Logs: Track user activity such as file uploads, downloads, and shares.
-### Bulk Operations: Supports bulk file actions such as bulk delete and multi-file downloads.
-### Authentication: Secured with OAuth2 and JWT tokens for secure file access and sharing.
-### Optimized File Operations: Enhanced performance with NAT Gateway and optimized downloads through AWS Lambda in a VPC.
-### CI/CD Pipeline: Automated deployments using GitHub Actions.
-### Monitoring: Application performance and logs are monitored using AWS CloudWatch.
+**File Management**: Upload, download, rename, delete, and share files across Telegram and Discord platforms.
+**Multi-Platform Support**: Seamless integration with both Telegram API and Discord.js.
+**Real-Time UI**: A responsive React.js frontend allowing users to organize files in folders and navigate through directories.
+**Activity Logs**: Track user activity such as file uploads, downloads, and shares.
+**Bulk Operations**: Supports bulk file actions such as bulk delete and multi-file downloads.
+**Authentication**: Secured with OAuth2 and JWT tokens for secure file access and sharing.
+**Optimized File Operations**: Enhanced performance with NAT Gateway and optimized downloads through AWS Lambda in a VPC.
+**CI/CD Pipeline**: Automated deployments using GitHub Actions.
+**Monitoring**: Application performance and logs are monitored using AWS CloudWatch.
 
 ## Tech Stack
 ### Backend
