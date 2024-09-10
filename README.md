@@ -3,31 +3,46 @@ Storagegram is a cloud-based, cross-platform file management system that integra
 
 ## Features
 **File Management**: Upload, download, rename, delete, and share files across Telegram and Discord platforms.
+
 **Multi-Platform Support**: Seamless integration with both Telegram API and Discord.js.
+
 **Real-Time UI**: A responsive React.js frontend allowing users to organize files in folders and navigate through directories.
+
 **Activity Logs**: Track user activity such as file uploads, downloads, and shares.
+
 **Bulk Operations**: Supports bulk file actions such as bulk delete and multi-file downloads.
+
 **Authentication**: Secured with OAuth2 and JWT tokens for secure file access and sharing.
+
 **Optimized File Operations**: Enhanced performance with NAT Gateway and optimized downloads through AWS Lambda in a VPC.
+
 **CI/CD Pipeline**: Automated deployments using GitHub Actions.
+
 **Monitoring**: Application performance and logs are monitored using AWS CloudWatch.
 
 ## Tech Stack
 ### Backend
-AWS Lambda – Serverless compute platform.
-API Gateway – Managing API requests and routes.
-NAT Gateway – Optimizing network traffic and performance.
-AWS RDS (PostgreSQL) – Storing file metadata and application data.
-Node.js – Backend application logic.
-Discord.js & Telegram API – Integrations for platform-specific file handling.
+**AWS Lambda** – Serverless compute platform.
+
+**API Gateway** – Managing API requests and routes.
+
+**NAT Gateway** – Optimizing network traffic and performance.
+
+**AWS RDS (PostgreSQL)** – Storing file metadata and application data.
+
+**Node.js** – Backend application logic.
+
+**Discord.js & Telegram API** – Integrations for platform-specific file handling.
 
 ### Frontend
-React.js – Responsive UI for real-time file management.
-Firebase – Frontend hosting for continuous delivery.
+**React.js** – Responsive UI for real-time file management.
+
+**Firebase** – Frontend hosting for continuous delivery.
 
 ### DevOps & Cloud
-GitHub Actions – CI/CD pipeline for automated testing and deployment.
-AWS CloudWatch – Application monitoring and logging.
+**GitHub Actions** – CI/CD pipeline for automated testing and deployment.
+
+**AWS CloudWatch**– Application monitoring and logging.
 
 # **Setup and Installation**
 ## 1. Clone the Repository:
