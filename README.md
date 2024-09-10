@@ -72,7 +72,9 @@ npm install
 In your .env file, add:
 
 TELEGRAM_BOT_TOKEN=token_from_telegram_bot
+
 TELEGRAM_BOT_ID=bot_id
+
 TELEGRAM_BOT_USERNAME=bot_username
 
 ## 5. Setup Discord Bot:
@@ -87,8 +89,11 @@ TELEGRAM_BOT_USERNAME=bot_username
 2. In your .env file, add:
 
 DISCORD_CLIENT_ID=client_id
+
 DISCORD_CLIENT_SECRET=client_secret
+
 DISCORD_BOT_TOKEN=discord_bot_token
+
 DISCORD_REDIRECT_URI=your_discord_redirect_uri
 
 ## 6. Configure other necessary variables in your .env file.
