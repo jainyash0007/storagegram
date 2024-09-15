@@ -57,7 +57,8 @@ function Login({ onLogin }) {
   const handleDiscordLogin = () => {
     const clientId = process.env.REACT_APP_DISCORD_CLIENT_ID;
     const redirectUri = encodeURIComponent(`${apiUrl}/auth/discord/callback`);
-    const discordAuthUrl = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=identify&state=discord`;
+    const scope = 'identify email messages.read bot';
+    const discordAuthUrl = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}&permission=75776&state=discord`;
     window.location.href = discordAuthUrl;
   };
 

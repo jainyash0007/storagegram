@@ -32,9 +32,9 @@ const telegramLogin = async (req, res) => {
 
 const initiateDiscordLogin = (req, res) => {
   const discordClientId = process.env.DISCORD_CLIENT_ID;
-  const redirectUri = encodeURIComponent('https://storagegram.web.app/auth/discord/callback');
-  const scope = encodeURIComponent('identify email');
-  const discordAuthUrl = `https://discord.com/api/oauth2/authorize?client_id=${discordClientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}`;
+  const redirectUri = encodeURIComponent(process.env.DISCORD_FRONTEND_REDIRECT_URI);
+  const scope = encodeURIComponent('identify email messages.read bot');
+  const discordAuthUrl = `https://discord.com/api/oauth2/authorize?client_id=${discordClientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}&permission=75776`;
   
   res.redirect(discordAuthUrl);
 };
