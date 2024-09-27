@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Route, Routes, Navigate, useLocation } from 'r
 import Home from './components/Home';
 import Login from './components/Login';
 import SharedFileDownload from './components/SharedFileDownload';
+import Contact from './components/Contact';
 
 function App() {
   return (
@@ -50,6 +51,7 @@ function AppRoutes() {
       <Route path="/" element={isAuthenticated ? <Home chatId={chatId} /> : <Navigate to="/login" />} />
       <Route path="/login" element={<Login onLogin={handleLogin} />} />
       <Route path="/download/:token" element={<SharedFileDownload />} />
+      <Route path="/contact" element={<Contact />} />
     </Routes>
   );
 }

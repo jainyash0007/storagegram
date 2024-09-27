@@ -1,14 +1,29 @@
 .app-bar {
     flex-grow: 1;
-    margin-left: 1px;
     text-decoration: none;
     color: inherit;
   }
   
-  .search-field {
-    margin-right: 115px;
+.search-field {
     background-color: white;
     border-radius: 4px;
     width: 500px;
-  }
-  
+}
+
+.toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.centered-search {
+    flex-grow: 1;
+    display: flex;
+    justify-content: center;
+    margin-right: 600px;
+}
+
+.highlight-text {
+    font-weight: bold;
+    color: red;
+}

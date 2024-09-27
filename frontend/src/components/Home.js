@@ -87,24 +87,29 @@ function Home() {
     <div>
       {/* AppBar with Search Bar and Logout Button */}
       <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" component={RouterLink} to="/" className="app-bar">
+        <Toolbar className="toolbar">
+          <Typography variant="h6" className="app-bar">
             Storagegram
           </Typography>
-          <TextField
-            placeholder="Search Files"
-            variant="outlined"
-            value={searchQuery}
-            onChange={handleSearchChange}
-            className="search-field"
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
-            }}
-          />
+          <div className="centered-search">
+            <TextField
+              placeholder="Search Files"
+              variant="outlined"
+              value={searchQuery}
+              onChange={handleSearchChange}
+              className="search-field"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+              }}
+            />
+          </div>
+          <Typography variant="h6" component={RouterLink} to="/contact" style={{ color: 'inherit', textDecoration: 'none', marginLeft: '20px' }}>
+            Contact Me
+          </Typography>
           <LogoutButton />
         </Toolbar>
       </AppBar>
@@ -131,7 +136,12 @@ function Home() {
             <UploadButton refreshFilesAndFolders={refreshFilesAndFolders} currentFolderId={currentFolderId} handleMenuClose={handleMenuClose} />
           </Menu>
           <Typography variant="h4" gutterBottom>Welcome to Storagegram</Typography>
-          <Typography variant="body1" gutterBottom>Manage your files via Telegram or Discord. Please upload files below 10MB due to limitations by Telegram and Discord.</Typography>
+          <Typography variant="body1" gutterBottom>
+            Manage your files via Telegram or Discord.{' '}
+            <span className="highlight-text">
+              Please upload files below 10MB due to limitations by Telegram and Discord.
+            </span>
+          </Typography>
           
           {/* Breadcrumbs for folder navigation */}
           <Breadcrumbs aria-label="breadcrumb">

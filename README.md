@@ -22,13 +22,9 @@ Storagegram is a cloud-based, cross-platform file management system that integra
 
 ## Tech Stack
 ### Backend
-**AWS Lambda** – Serverless compute platform.
+**Firebase Functions** – Serverless compute platform.
 
-**API Gateway** – Managing API requests and routes.
-
-**NAT Gateway** – Optimizing network traffic and performance.
-
-**AWS RDS (PostgreSQL)** – Storing file metadata and application data.
+**Firestore** – Storing file metadata and application data.
 
 **Node.js** – Backend application logic.
 
@@ -37,12 +33,10 @@ Storagegram is a cloud-based, cross-platform file management system that integra
 ### Frontend
 **React.js** – Responsive UI for real-time file management.
 
-**Firebase** – Frontend hosting for continuous delivery.
+**Firebase Hosting** – Frontend hosting for continuous delivery.
 
 ### DevOps & Cloud
 **GitHub Actions** – CI/CD pipeline for automated testing and deployment.
-
-**AWS CloudWatch**– Application monitoring and logging.
 
 # **Setup and Installation**
 ## 1. Clone the Repository:
@@ -55,7 +49,7 @@ cd frontend
 
 npm install
 
-cd ../backend
+cd ../backend/functions
 
 npm install
 
