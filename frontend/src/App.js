@@ -16,7 +16,7 @@ function AppRoutes() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [chatId, setChatId] = useState(null);
   const [loading, setLoading] = useState(true);
-  const location = useLocation();  // Now inside the Router context
+  const location = useLocation();
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);

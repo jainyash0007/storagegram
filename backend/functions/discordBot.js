@@ -1,6 +1,8 @@
 const { Client, GatewayIntentBits } = require('discord.js');
 require('dotenv').config();
 
+let botLoggedIn = false;
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -9,23 +11,19 @@ const client = new Client({
     GatewayIntentBits.DirectMessages,
   ],
 });
-
-client.once('ready', () => {
-  console.log(`Logged in as ${client.user.tag}`);
-});
-
-client.login(process.env.DISCORD_BOT_TOKEN);
-
-const waitForBotReady = new Promise((resolve, reject) => {
-  client.once('ready', resolve);
-  client.once('error', reject);
-});
+// Login the bot only if it has not logged in yet
+if (!botLoggedIn) {
+  client.login(process.env.DISCORD_BOT_TOKEN).then(() => {
+    console.log(`Logged in as ${client.user.tag}`);
+    botLoggedIn = true; // Set flag to true after successful login
+  }).catch((error) => {
+    console.error('Error logging in Discord bot:', error);
+  });
+}
 
 // Function to send a file in a DM to a user
 const sendFileToUser = async (userId, file, options = {}) => {
   try {
-    await waitForBotReady; // Ensure the bot is ready before proceeding
-
     const user = await client.users.fetch(userId);
     if (!user) throw new Error('User not found');
 
@@ -51,34 +49,20 @@ const sendFileToUser = async (userId, file, options = {}) => {
 };
 
 // Send different types of files (reuse the sendFileToUser function)
-const sendPhoto = async (userId, file, options = {}) => {
-  return sendFileToUser(userId, file, options);
-};
-
-const sendVideo = async (userId, file, options = {}) => {
-  return sendFileToUser(userId, file, options);
-};
-
-const sendDocument = async (userId, file, options = {}) => {
-  return sendFileToUser(userId, file, options);
-};
+const sendPhoto = (userId, file, options = {}) => sendFileToUser(userId, file, options);
+const sendVideo = (userId, file, options = {}) => sendFileToUser(userId, file, options);
+const sendDocument = (userId, file, options = {}) => sendFileToUser(userId, file, options);
 
 // Function to delete a message in a DM channel
 const deleteMessage = async (userId, messageId) => {
   try {
-    await waitForBotReady; // Ensure the bot is ready before proceeding
-
     const user = await client.users.fetch(userId);
     if (!user) throw new Error('User not found');
 
-    // Fetch the DM channel with the user
     const dmChannel = await user.createDM();
-
-    // Fetch the specific message in the DM channel
     const message = await dmChannel.messages.fetch(messageId);
     if (!message) throw new Error('Message not found');
 
-    // Delete the message
     await message.delete();
     console.log(`Message with ID ${messageId} deleted for user ${userId}`);
   } catch (error) {
@@ -90,24 +74,16 @@ const deleteMessage = async (userId, messageId) => {
 // Function to download a document from a DM
 const downloadDocument = async (userId, messageId) => {
   try {
-    await waitForBotReady; // Ensure the bot is ready before proceeding
-
     const user = await client.users.fetch(userId);
     if (!user) throw new Error('User not found');
 
-    // Fetch the DM channel with the user
     const dmChannel = await user.createDM();
-
-    // Fetch the specific message in the DM channel
     const message = await dmChannel.messages.fetch(messageId);
     if (!message || !message.attachments.size) {
       throw new Error('Message or attachment not found');
     }
 
-    // Get the first attachment in the message
     const attachment = message.attachments.first();
-
-    // Return the download URL and file name
     return { downloadUrl: attachment.url, fileName: attachment.name };
   } catch (error) {
     console.error('Error downloading file from Discord:', error);

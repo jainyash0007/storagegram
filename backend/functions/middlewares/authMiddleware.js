@@ -1,4 +1,4 @@
-const { pool } = require('../db');
+const { db } = require('../db');
 
 const authMiddleware = async (req, res, next) => {
   const sessionToken = req.headers.authorization;
@@ -8,12 +8,15 @@ const authMiddleware = async (req, res, next) => {
   }
 
   try {
-    const result = await pool.query('SELECT user_id FROM sessions WHERE token = $1', [sessionToken]);
-    if (result.rows.length === 0) {
+    const sessionRef = db.collection('sessions').where('token', '==', sessionToken);
+    const sessionSnapshot = await sessionRef.get();
+
+    if (sessionSnapshot.empty) {
       return res.status(401).json({ error: 'Invalid session token' });
     }
 
-    req.userId = result.rows[0].user_id;
+    const sessionData = sessionSnapshot.docs[0].data();
+    req.userId = sessionData.user_id;
     next();
   } catch (error) {
     console.error('Auth middleware error:', error);

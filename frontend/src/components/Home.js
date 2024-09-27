@@ -131,7 +131,7 @@ function Home() {
             <UploadButton refreshFilesAndFolders={refreshFilesAndFolders} currentFolderId={currentFolderId} handleMenuClose={handleMenuClose} />
           </Menu>
           <Typography variant="h4" gutterBottom>Welcome to Storagegram</Typography>
-          <Typography variant="body1" gutterBottom>Manage your files via Telegram or Discord.</Typography>
+          <Typography variant="body1" gutterBottom>Manage your files via Telegram or Discord. Please upload files below 10MB due to limitations by Telegram and Discord.</Typography>
           
           {/* Breadcrumbs for folder navigation */}
           <Breadcrumbs aria-label="breadcrumb">

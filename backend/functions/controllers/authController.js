@@ -1,4 +1,5 @@
 const authService = require('../services/authService');
+require('dotenv').config();
 
 const login = async (req, res) => {
   try {

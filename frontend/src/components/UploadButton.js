@@ -20,37 +20,32 @@ function UploadButton({ refreshFilesAndFolders, currentFolderId, handleMenuClose
     const formData = new FormData();
     formData.append('file', selectedFile);
     const platform = localStorage.getItem('platform');
-
+  
     if (!platform) {
-        alert("Platform not found. Please log in again.");
-        return;
+      alert("Platform not found. Please log in again.");
+      return;
     }
     formData.append('platform', platform);
     if (currentFolderId) {
       formData.append('folderId', currentFolderId);
     }
-
+  
     const sessionToken = localStorage.getItem('sessionToken');
-
+  
     if (!sessionToken) {
       alert("You are not authenticated. Please log in.");
       return;
     }
-
+  
     setUploading(true);
-
+  
     const xhr = new XMLHttpRequest();
     xhr.open('POST', `${apiUrl}/files/upload`, true);
-
+  
+    // Set authorization header
     xhr.setRequestHeader('Authorization', sessionToken);
-
-    xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable) {
-        const progress = Math.round((event.loaded / event.total) * 100);
-        setUploadProgress(progress);
-      }
-    };
-
+  
+    // Log headers after the request completes
     xhr.onload = function () {
       setUploading(false);
       if (xhr.status === 200) {
@@ -58,7 +53,7 @@ function UploadButton({ refreshFilesAndFolders, currentFolderId, handleMenuClose
         if (response.success) {
           refreshFilesAndFolders();
           setUploadProgress(0);
-          handleMenuClose(); // Close dropdown
+          handleMenuClose();
         } else {
           alert('File upload failed: ' + response.error);
         }
@@ -66,12 +61,18 @@ function UploadButton({ refreshFilesAndFolders, currentFolderId, handleMenuClose
         alert('File upload failed');
       }
     };
-
+  
     xhr.onerror = function () {
       setUploading(false);
       alert('File upload failed');
     };
-
+  
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        const progress = Math.round((event.loaded / event.total) * 100);
+        setUploadProgress(progress);
+      }
+    };
     xhr.send(formData);
   };
 
