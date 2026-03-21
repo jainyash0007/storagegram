@@ -46,5 +46,9 @@
   "resolutions": {
     "nth-check": "2.0.1",
     "postcss": "8.4.34"
+  },
+  "overrides": {
+    "underscore": ">=1.13.8",
+    "serialize-javascript": ">=7.0.3"
   }
 }
