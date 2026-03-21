@@ -48,6 +48,9 @@
     "postcss": "8.4.34"
   },
   "overrides": {
+    "resolve-url-loader": {
+      "postcss": ">=8.4.31"
+    },
     "svgo": ">=2.8.1",
     "glob": ">=10.5.0",
     "webpack-dev-server": ">=5.2.1",
