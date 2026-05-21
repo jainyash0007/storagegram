@@ -618,7 +618,7 @@ const deleteFromTelegram = async (fileId, userId) => {
     await telegramBot.deleteMessage(chatId, messageId);
   } catch (error) {
     if (error.response && error.response.body && error.response.body.description.includes("message can't be deleted for everyone")) {
-      console.warn(`Message for file ID ${fileId} cannot be deleted for everyone on Telegram:`, error.response.body.description);
+      console.warn('Message for file ID %s cannot be deleted for everyone on Telegram:', fileId, error.response.body.description);
       // Log this as a non-critical issue and proceed with deleting from the database
     } else {
       // If the error is something else, rethrow it to be handled by the calling function
