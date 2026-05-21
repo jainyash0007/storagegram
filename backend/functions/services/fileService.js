@@ -286,7 +286,7 @@ const downloadFile = async (req, res) => {
     });
 
   } catch (error) {
-    console.error(`Error in downloadFile for fileId ${fileId}:`, error);
+    console.error('Error in downloadFile for fileId %s:', fileId, error);
     throw new Error('Failed to download file');
   }
 };
