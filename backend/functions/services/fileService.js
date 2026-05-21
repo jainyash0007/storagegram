@@ -372,7 +372,7 @@ const deleteFile = async (req) => {
       if (platform === 'telegram' && error.response && error.response.body && 
         (error.response.body.description.includes('message to delete not found') || 
          error.response.body.description.includes("message can't be deleted for everyone"))) {
-      console.warn(`Message for file ID ${id} cannot be deleted on Telegram:`, error.response.body.description);
+      console.warn('Message for file ID %s cannot be deleted on Telegram:', id, error.response.body.description);
     } else {
       throw error;
     }
